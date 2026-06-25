@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isLocalSessionUser(userId) {
+      return userId == 'dev-carcontrol-local' || userId == 'demo-carcontrol';
+    }
+
+    function canAccessUser(userId) {
+      return isOwner(userId) || isLocalSessionUser(userId);
+    }
+
+    function canAccessVehicleData(userId) {
+      return (isSignedIn() && request.auth.uid == userId) || isLocalSessionUser(userId);
+    }
+
+    match /users/{userId} {
+      allow read, write: if canAccessUser(userId);
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read, update, delete: if canAccessVehicleData(resource.data.userId);
+      allow create: if canAccessVehicleData(request.resource.data.userId);
+
+      match /events/{eventId} {
+        allow read, write: if canAccessVehicleData(
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId
+        );
+      }
+
+      match /documents/{docId} {
+        allow read, write: if canAccessVehicleData(
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId
+        );
+      }
+    }
+
+    match /notifications/{notificationId} {
+      allow read, update, delete: if canAccessVehicleData(resource.data.userId);
+      allow create: if canAccessVehicleData(request.resource.data.userId);
+    }
+
+    match /mx_vehicle_rules/{stateCode} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /mx_state_news/{stateCode} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /device_tokens/{tokenId} {
+      allow read, delete: if canAccessVehicleData(resource.data.userId);
+      allow create, update: if canAccessVehicleData(request.resource.data.userId);
+    }
+
+    match /notified_state_news/{docId} {
+      allow read, write: if false;
+    }
+
+    match /brand_logos/{brandKey} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /access_links/{token} {
+      allow read, write: if false;
+    }
+
+    match /access_links_by_user/{userId} {
+      allow read, write: if false;
+    }
+
+    match /casin_sync_groups/{groupKey} {
+      allow read, write: if false;
+    }
+  }
+}

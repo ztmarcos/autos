@@ -1,0 +1,29 @@
+[
+  {
+    "origin": [
+      "https://autos-fa58f.web.app",
+      "https://autos-fa58f.firebaseapp.com",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "capacitor://localhost",
+      "ionic://localhost"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "X-Firebase-Storage-Version",
+      "X-Goog-Upload-Protocol",
+      "X-Goog-Upload-Command",
+      "X-Goog-Upload-Header-Content-Length",
+      "X-Goog-Upload-Header-Content-Type",
+      "X-Goog-Upload-Offset",
+      "X-Goog-Upload-Status",
+      "X-Goog-Hash",
+      "X-Goog-Content-Length-Range"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

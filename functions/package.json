@@ -1,0 +1,43 @@
+{
+  "name": "carcontrol-functions",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "seed:demo": "node scripts/seed-demo-session.cjs",
+    "seed:demo-policies": "node scripts/seed-demo-policies.cjs",
+    "reset:demo": "node scripts/reset-demo-user.cjs",
+    "repair:calcomanias": "node scripts/repair-calcomanias.cjs",
+    "seed:casin-test": "npm run build && node scripts/seed-casin-test-link.cjs",
+    "seed:demo": "node scripts/seed-demo-session.cjs",
+    "seed:demo-policies": "node scripts/seed-demo-policies.cjs",
+    "reset:demo": "node scripts/reset-demo-user.cjs",
+    "repair:calcomanias": "node scripts/repair-calcomanias.cjs",
+    "seed:casin-test": "npm run build && node scripts/seed-casin-test-link.cjs"
+  },
+  "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.3",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.3.0",
+    "heic-convert": "^2.1.0",
+    "nodemailer": "^9.0.0",
+    "openai": "^4.77.0",
+    "heic-convert": "^2.1.0",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-img": "^4.4.0",
+    "pngjs": "^7.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.1",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/pngjs": "^6.0.5",
+    "typescript": "^5.7.0"
+  }
+}

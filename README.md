@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# autoControl
 
-## Getting Started
+Control vehicular para México — web + iOS (Capacitor).
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** + Tailwind (UI minimal)
+- **Firebase** Auth, Firestore, Storage, Cloud Functions
+- **Capacitor** — notificaciones locales, push (FCM), calendario Apple
+- **OpenAI** — clasificación y extracción de documentos
+
+## Setup
+
+### 1. Variables de entorno
+
+Copia `.env.local.example` a `.env.local` (ya incluye config de `autos-fa58f`).
+
+### 2. Instalar dependencias
+
+```bash
+npm install
+cd functions && npm install && cd ..
+```
+
+### 3. Firebase CLI
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase use autos-fa58f
+```
+
+### 4. Desplegar reglas
+
+```bash
+firebase deploy --only firestore:rules,storage
+```
+
+### 5. Cloud Functions
+
+Configura el secreto de OpenAI (reemplaza el placeholder si ya existe):
+
+```bash
+printf 'sk-tu-api-key' | firebase functions:secrets:set OPENAI_API_KEY --force
+```
+
+Despliega:
+
+```bash
+cd functions && npm run build && cd ..
+firebase deploy --only functions
+```
+
+### 6. Desarrollo web
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 7. iOS (Capacitor)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+npx cap add ios
+npx cap sync ios
+npx cap open ios
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Escaneo de tarjeta de circulación
 
-## Learn More
+Al agregar un vehículo puedes subir foto o PDF de la tarjeta de circulación. La Cloud Function `extractVehicleCard` usa PDF parse + OpenAI Vision para llenar placa, marca y estado. Las fechas se capturan manualmente.
 
-To learn more about Next.js, take a look at the following resources:
+## Escaneo de tarjeta de circulación
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Al agregar un vehículo puedes subir foto o PDF de la tarjeta de circulación. La Cloud Function `extractVehicleCard` usa PDF parse + OpenAI Vision para llenar placa, marca y estado. Las fechas se capturan manualmente.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Funcionalidades
 
-## Deploy on Vercel
+- CRUD vehículos con fechas de verificación, tenencia y servicio
+- Escaneo de tarjeta de circulación al agregar vehículo
+- Escaneo de tarjeta de circulación al agregar vehículo
+- Reglas MX (CDMX, Edomex) por terminación de placa
+- Subida única de documentos → IA clasifica y extrae datos
+- Notificaciones in-app + email Gmail + locales iOS
+- Calendario Apple opcional
+- Push remoto vía FCM (requiere Apple Developer)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Estructura
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/           # Next.js pages
+  components/    # UI minimal
+  config/        # Schemas documentos
+  lib/           # Firebase, vehículos, notificaciones
+functions/       # Cloud Functions (processDocument, dailyAlerts)
+firestore.rules
+storage.rules
+capacitor.config.ts
+```
+
+## Seed reglas MX
+
+Tras login, llama la función callable `seedMxRules` desde la consola Firebase o agrega un botón admin.
