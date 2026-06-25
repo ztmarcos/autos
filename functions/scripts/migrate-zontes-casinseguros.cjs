@@ -3,16 +3,7 @@
  * Run: node scripts/migrate-zontes-casinseguros.cjs (from functions/)
  */
 const { execSync } = require("child_process");
-const { initializeApp } = require("firebase/app");
-const {
-  getFirestore,
-  doc,
-  getDoc,
-  getDocs,
-  collection,
-  updateDoc,
-  serverTimestamp,
-} = require("firebase/firestore");
+const admin = require("firebase-admin");
 
 const BUCKET = "autos-fa58f.firebasestorage.app";
 const FROM_USER = "dev-carcontrol-local";
@@ -33,43 +24,48 @@ async function main() {
     stdio: "inherit",
   });
 
-  const app = initializeApp({
-    apiKey: "AIzaSyA1hgeELWEpyTt5y84HLOFuVmqzkdbmw4s",
-    projectId: "autos-fa58f",
-  });
-  const db = getFirestore(app);
+  admin.initializeApp({ projectId: "autos-fa58f" });
+  const db = admin.firestore();
+  const FieldValue = admin.firestore.FieldValue;
 
-  const docsSnap = await getDocs(
-    collection(db, "vehicles", VEHICLE_ID, "documents"),
-  );
+  const docsSnap = await db
+    .collection("vehicles")
+    .doc(VEHICLE_ID)
+    .collection("documents")
+    .get();
 
   console.log(`Updating ${docsSnap.size} document(s)…`);
   for (const docSnap of docsSnap.docs) {
     const data = docSnap.data();
     const patch = {
       storagePath: remapPath(data.storagePath),
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
     if (data.thumbnailPath) {
       patch.thumbnailPath = remapPath(data.thumbnailPath);
     }
-    await updateDoc(doc(db, "vehicles", VEHICLE_ID, "documents", docSnap.id), patch);
+    await db
+      .collection("vehicles")
+      .doc(VEHICLE_ID)
+      .collection("documents")
+      .doc(docSnap.id)
+      .update(patch);
     console.log("  doc", docSnap.id);
   }
 
   const vehiclePatch = {
     userId: TO_USER,
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
-  const vehicleRef = doc(db, "vehicles", VEHICLE_ID);
-  const vehicleSnap = await getDoc(vehicleRef);
+  const vehicleRef = db.collection("vehicles").doc(VEHICLE_ID);
+  const vehicleSnap = await vehicleRef.get();
   const vehicleData = vehicleSnap.data() ?? {};
   if (vehicleData?.brandLogoPath) {
     vehiclePatch.brandLogoPath = remapPath(vehicleData.brandLogoPath);
   }
 
   console.log("Updating vehicle owner…");
-  await updateDoc(vehicleRef, vehiclePatch);
+  await vehicleRef.update(vehiclePatch);
 
   console.log("Removing old storage…");
   execSync(`gsutil -m rm -r "${FROM_PREFIX}"`, { stdio: "inherit" });
