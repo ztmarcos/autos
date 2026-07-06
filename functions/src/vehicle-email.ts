@@ -22,6 +22,15 @@ const STATE_NAMES: Record<string, string> = {
   PUE: "Puebla",
 };
 
+/** Solo estos correos reciben alertas automáticas por ahora. */
+export const NOTIFICATION_EMAIL_ALLOWLIST = [
+  "z.t.marcos@gmail.com",
+] as const;
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export function vehicleFromFirestore(data: DocumentData): VehicleEmailSummary {
   const plate = String(data.plate ?? "");
   const alias = data.alias as string | undefined;
@@ -59,7 +68,10 @@ export function vehicleDetailLines(vehicle: VehicleEmailSummary): string[] {
 
 export function isDeliverableEmail(email: string | null | undefined): boolean {
   if (!email?.includes("@")) return false;
-  if (email.endsWith("@carcontrol.local")) return false;
-  if (email === "demo@carcontrol.app") return false;
-  return true;
+  const normalized = normalizeEmail(email);
+  if (normalized.endsWith("@carcontrol.local")) return false;
+  if (normalized === "demo@carcontrol.app") return false;
+  return NOTIFICATION_EMAIL_ALLOWLIST.some(
+    (allowed) => normalizeEmail(allowed) === normalized,
+  );
 }
