@@ -50,3 +50,6 @@ next-env.d.ts
 # IDE
 .idea
 .vscode
+
+# Local recovery backup (original SSD copy)
+/recovered/

@@ -67,6 +67,9 @@ export function SettingsView({ userId, email, onBack }: SettingsViewProps) {
           {user?.sessionMode === "demo" && (
             <p className="mt-1 text-xs text-black/40">Sesión demo</p>
           )}
+          {user?.sessionMode === "google" && (
+            <p className="mt-1 text-xs text-black/40">Cuenta de Google</p>
+          )}
         </section>
 
         <section className="space-y-4 px-4 py-4">

@@ -9,8 +9,9 @@ import {
   formatVehicleDisplayDate,
 } from "@/lib/vehicles";
 import { formatDaysLabel, getRuleSummary, getUrgencyLabel, getUrgencyStatus } from "@/lib/mx-rules";
-import { getNoCirculaInfo } from "@/lib/no-circula";
-import { getVehicleNewsItems } from "@/lib/vehicle-news";
+import { getNoCirculaInfo, getActiveContingencyAlerts } from "@/lib/no-circula";
+import { alertAppliesToVehicle, getVehicleNewsItems } from "@/lib/vehicle-news";
+import { CalcomaniaBadge } from "@/components/CalcomaniaBadge";
 import { StatusDot } from "@/components/StatusDot";
 import { VehicleBrandLogo } from "@/components/VehicleBrandLogo";
 import { VehicleDataTabs } from "@/components/VehicleDataTabs";
@@ -63,8 +64,22 @@ export function VehicleDetail({
   const [events, setEvents] = useState<VehicleEvent[]>([]);
   const upcoming = getUpcomingItems(vehicle, insuranceExpiry);
   const ruleInfo = getRuleSummary(vehicle.plate, vehicle.state, rules);
-  const noCircula = getNoCirculaInfo(vehicle.plate, vehicle.state);
-  const newsItems = getVehicleNewsItems(vehicle, stateNewsAlerts, noCircula);
+  const vehicleAlerts = stateNewsAlerts.filter((alert) =>
+    alertAppliesToVehicle(alert, vehicle),
+  );
+  const stateAlerts = stateNewsAlerts.filter((alert) =>
+    alert.stateCodes.includes(vehicle.state),
+  );
+  const contingencyAlerts = getActiveContingencyAlerts(stateAlerts, vehicle.state);
+  const noCircula = getNoCirculaInfo(vehicle.plate, vehicle.state, {
+    calcomania: vehicle.calcomania,
+    vehicleType: vehicle.vehicleType,
+    alias: vehicle.alias,
+    brand: vehicle.brand,
+    hasContingency: contingencyAlerts.length > 0,
+    contingencyAlert: contingencyAlerts[0],
+  });
+  const newsItems = getVehicleNewsItems(vehicle, vehicleAlerts, noCircula);
 
   useEffect(() => {
     listVehicleEvents(vehicle.id).then(setEvents);
@@ -79,7 +94,14 @@ export function VehicleDetail({
         <div className="mt-3 flex items-center gap-3">
           <VehicleBrandLogo vehicle={vehicle} size="md" />
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold">{getVehicleDisplayName(vehicle)}</h2>
+            <h2 className="flex items-center gap-2 text-xl font-semibold">
+              {getVehicleDisplayName(vehicle)}
+              <CalcomaniaBadge
+                plate={vehicle.plate}
+                state={vehicle.state}
+                className="h-3.5 w-5"
+              />
+            </h2>
             <p className="text-[13px] text-black/50">
               {vehicle.plate} · {vehicle.state}
               {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
