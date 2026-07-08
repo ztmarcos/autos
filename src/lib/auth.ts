@@ -23,7 +23,12 @@ export const DEV_USER_ID = "dev-carcontrol-local";
 export const DEMO_USER_ID = "demo-carcontrol";
 
 const DEV_PASSWORD = "sisisi";
-const DEMO_PASSWORD = "demo";
+const DEFAULT_DEMO_PASSWORD = "demo";
+
+function resolveDemoPassword(override?: string): string {
+  if (override?.trim()) return override.trim();
+  return process.env.NEXT_PUBLIC_DEMO_PASSWORD?.trim() || DEFAULT_DEMO_PASSWORD;
+}
 
 const SESSION_KEY = "carcontrol_session";
 const SESSION_MODE_KEY = "carcontrol_session_mode";
@@ -127,7 +132,7 @@ export async function signInWithPassword(
   password: string,
   mode: SessionMode = "dev",
 ): Promise<AppUser> {
-  const expected = mode === "demo" ? DEMO_PASSWORD : DEV_PASSWORD;
+  const expected = mode === "demo" ? resolveDemoPassword() : DEV_PASSWORD;
   if (password !== expected) {
     throw new Error("Contraseña incorrecta");
   }
@@ -144,8 +149,8 @@ export async function signInDev(): Promise<AppUser> {
   return signInWithPassword(DEV_PASSWORD, "dev");
 }
 
-export async function signInDemo(): Promise<AppUser> {
-  const user = await signInWithPassword(DEMO_PASSWORD, "demo");
+export async function signInDemo(password?: string): Promise<AppUser> {
+  const user = await signInWithPassword(resolveDemoPassword(password), "demo");
   await seedDemoSessionIfNeeded();
   return user;
 }

@@ -5,11 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:demo": "node scripts/build-demo.mjs",
+    "build:all": "node scripts/build-all.mjs",
     "start": "next start",
     "lint": "eslint",
     "cap:sync": "npm run build && npx cap sync",
     "cap:ios": "npm run cap:sync && npx cap open ios",
-    "firebase:deploy": "firebase deploy",
+    "firebase:deploy": "npm run build:all && firebase deploy",
+    "firebase:deploy:demo": "npm run build:demo && firebase deploy --only hosting:autos-fa58f-demo",
     "functions:build": "npm --prefix functions run build"
   },
   "dependencies": {

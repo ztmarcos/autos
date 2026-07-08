@@ -15,6 +15,7 @@
 # Next.js
 /.next/
 /out/
+/out-demo/
 
 # Production
 /build
@@ -32,6 +33,7 @@ yarn-error.log*
 # Env files
 .env*
 !.env.local.example
+!.env.demo.local.example
 
 # Firebase
 functions/lib/

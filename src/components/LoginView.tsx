@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { signInDemo, signInDev, signInWithGoogle } from "@/lib/auth";
 import { useAuth } from "@/components/AuthProvider";
 import { APP_NAME } from "@/config/app";
 import { AppLogo } from "@/components/AppLogo";
+import { IS_DEMO_HOSTING } from "@/config/hosting";
 
 function GoogleIcon() {
   return (
@@ -29,6 +30,69 @@ function GoogleIcon() {
   );
 }
 
+function DemoHostingLogin() {
+  const { refresh } = useAuth();
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await signInDemo(password);
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Contraseña incorrecta");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[var(--background)] px-6">
+      <div className="text-center">
+        <div className="mb-4 flex justify-center">
+          <AppLogo size="md" />
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">{APP_NAME}</h1>
+        <p className="mt-2 text-[15px] text-black/50">
+          Control vehicular para México
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="flex w-full max-w-xs flex-col gap-3"
+      >
+        <label className="text-center text-sm text-black/55">
+          Ingresa la contraseña de acceso
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="field-input text-center"
+          placeholder="Contraseña"
+          autoComplete="current-password"
+          disabled={loading}
+        />
+        <button
+          type="submit"
+          disabled={loading || !password.trim()}
+          className="btn-primary w-full py-3 text-sm font-medium disabled:opacity-50"
+        >
+          {loading ? "Entrando…" : "Entrar"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="max-w-sm text-center text-sm text-black/70">{error}</p>
+      )}
+    </div>
+  );
+}
+
 export function LoginView() {
   const { refresh } = useAuth();
   const [loading, setLoading] = useState<"google" | "demo" | "dev" | null>(
@@ -37,6 +101,7 @@ export function LoginView() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (IS_DEMO_HOSTING) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("demo") === "1") {
       setLoading("demo");
@@ -48,6 +113,10 @@ export function LoginView() {
         });
     }
   }, [refresh]);
+
+  if (IS_DEMO_HOSTING) {
+    return <DemoHostingLogin />;
+  }
 
   async function handleGoogle() {
     setLoading("google");
@@ -118,9 +187,6 @@ export function LoginView() {
         >
           {loading === "demo" ? "Entrando…" : "Entrar a demo"}
         </button>
-        <p className="text-center text-xs text-black/40">
-          Mercedes, BMW y VW de ejemplo
-        </p>
         <button
           type="button"
           onClick={handleDev}

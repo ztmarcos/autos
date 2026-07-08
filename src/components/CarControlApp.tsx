@@ -13,6 +13,7 @@ import { VehicleForm } from "@/components/VehicleForm";
 import { AlertsOverlay } from "@/components/AlertsOverlay";
 import { SettingsView } from "@/components/SettingsView";
 import { APP_NAME } from "@/config/app";
+import { IS_DEMO_HOSTING } from "@/config/hosting";
 import { DocumentDetail } from "@/components/DocumentDetail";
 import type {
   DocumentType,
@@ -445,9 +446,14 @@ export function CarControlApp() {
       </div>
     );
 
+  const hideHeader =
+    view === "form" ||
+    view === "document" ||
+    (view === "settings" && !IS_DEMO_HOSTING);
+
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--background)] text-[var(--foreground)]">
-      {view !== "settings" && view !== "form" && view !== "document" && (
+      {!hideHeader && (
         <Header
           unreadCount={unread}
           onAlerts={() => setView("alerts")}
