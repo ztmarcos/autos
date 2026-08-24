@@ -55,3 +55,6 @@ next-env.d.ts
 
 # Local recovery backup (original SSD copy)
 /recovered/
+
+# Generated reports
+/scripts/output/

@@ -8,7 +8,7 @@ import {
   listVehicleEvents,
   formatVehicleDisplayDate,
 } from "@/lib/vehicles";
-import { formatDaysLabel, getRuleSummary, getUrgencyLabel, getUrgencyStatus } from "@/lib/mx-rules";
+import { formatDaysLabel, getRuleSummary, getStateName, getUrgencyLabel, getUrgencyStatus } from "@/lib/mx-rules";
 import { getNoCirculaInfo, getActiveContingencyAlerts } from "@/lib/no-circula";
 import { alertAppliesToVehicle, getVehicleNewsItems } from "@/lib/vehicle-news";
 import { CalcomaniaBadge } from "@/components/CalcomaniaBadge";
@@ -16,6 +16,11 @@ import { StatusDot } from "@/components/StatusDot";
 import { VehicleBrandLogo } from "@/components/VehicleBrandLogo";
 import { VehicleDataTabs } from "@/components/VehicleDataTabs";
 import { VehicleNewsSection } from "@/components/VehicleNewsSection";
+import {
+  ONBOARDING_STEP2_KEY,
+  OnboardingStepBanner,
+  useOnboardingStep,
+} from "@/components/OnboardingStepBanner";
 
 interface VehicleDetailProps {
   userId: string;
@@ -62,6 +67,8 @@ export function VehicleDetail({
   onSelectDocument,
 }: VehicleDetailProps) {
   const [events, setEvents] = useState<VehicleEvent[]>([]);
+  const { dismissed: step2Done, dismiss: dismissStep2 } =
+    useOnboardingStep(ONBOARDING_STEP2_KEY);
   const upcoming = getUpcomingItems(vehicle, insuranceExpiry);
   const ruleInfo = getRuleSummary(vehicle.plate, vehicle.state, rules);
   const vehicleAlerts = stateNewsAlerts.filter((alert) =>
@@ -94,16 +101,16 @@ export function VehicleDetail({
         <div className="mt-3 flex items-center gap-3">
           <VehicleBrandLogo vehicle={vehicle} size="md" />
           <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-xl font-semibold">
+            <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
               {getVehicleDisplayName(vehicle)}
               <CalcomaniaBadge
                 plate={vehicle.plate}
                 state={vehicle.state}
-                className="h-3.5 w-5"
+                vehicle={vehicle}
               />
             </h2>
             <p className="text-[13px] text-black/50">
-              {vehicle.plate} · {vehicle.state}
+              {vehicle.plate} · {getStateName(vehicle.state)}
               {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
               {vehicle.brand ? ` · ${vehicle.brand}` : ""}
             </p>
@@ -112,6 +119,14 @@ export function VehicleDetail({
       </div>
 
       <div className="space-y-6 px-4 py-4">
+        {!step2Done && (
+          <OnboardingStepBanner
+            step={2}
+            title="Verifica tus datos y captura tus documentos"
+            body="Revisa placa, póliza y fechas. Luego sube tu tarjeta de circulación u otros comprobantes en las pestañas de abajo."
+            onDismiss={dismissStep2}
+          />
+        )}
         <section>
           <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-black/40">
             Próximos

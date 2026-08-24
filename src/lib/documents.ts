@@ -41,6 +41,7 @@ function mapDocument(id: string, data: Record<string, unknown>): VehicleDocument
     mimeType: data.mimeType as string,
     fileName: data.fileName as string,
     displayName: data.displayName as string | undefined,
+    source: data.source as string | undefined,
     detectedType: data.detectedType as VehicleDocument["detectedType"],
     detectedTypeLabel: data.detectedTypeLabel as string | undefined,
     confidence: data.confidence as number | undefined,
@@ -362,10 +363,22 @@ export function getDocumentLabel(doc: VehicleDocument): string {
 }
 
 export function isPdfDocument(doc: VehicleDocument): boolean {
+  if (!hasOriginalDocumentFile(doc)) return false;
   return (
     doc.mimeType === "application/pdf" ||
     doc.storagePath.toLowerCase().endsWith(".pdf")
   );
+}
+
+export function hasOriginalDocumentFile(doc: VehicleDocument): boolean {
+  if (!doc.storagePath?.trim()) return false;
+  const path = doc.storagePath.toLowerCase();
+  const file = (doc.fileName || "").toLowerCase();
+  const mime = (doc.mimeType || "").toLowerCase();
+  if (mime.includes("json")) return false;
+  if (path.endsWith(".json") || path.includes("/manual.json")) return false;
+  if (file.endsWith(".json")) return false;
+  return true;
 }
 
 function isImageThumbnailPath(path: string): boolean {

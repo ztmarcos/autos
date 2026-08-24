@@ -4,6 +4,7 @@ import { sendEmail } from "./mail";
 import { sendPushToUser } from "./push";
 import type { EmailContent } from "./email-templates";
 import { isDeliverableEmail } from "./vehicle-email";
+import { userHasOpenedApp } from "./expiry-cycle";
 
 export async function sendUserAlert(
   db: Firestore,
@@ -37,9 +38,11 @@ export async function sendUserAlert(
 
   const email = options.userData.email as string | undefined;
   const emailEnabled = prefs.emailEnabled !== false;
+  const hasOpenedApp = userHasOpenedApp(options.userData);
   const includeInEmail = options.includeInEmail !== false;
 
   if (
+    hasOpenedApp &&
     emailEnabled &&
     includeInEmail &&
     options.mailReady &&

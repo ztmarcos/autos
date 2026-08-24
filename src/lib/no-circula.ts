@@ -17,44 +17,62 @@ export interface VehicleTypeHint {
   brand?: string;
 }
 
+function normalizeVehicleText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function textLooksLikeMoto(raw: string): boolean {
+  return (
+    raw.includes("motocicleta") ||
+    raw.includes("motociclet") ||
+    raw.includes("motoneta") ||
+    raw.includes("ciclomotor") ||
+    /\bmoto\b/.test(raw) ||
+    raw.includes("scooter") ||
+    raw.includes("cuatrimoto") ||
+    raw.includes("trimoto") ||
+    raw.includes("motocross") ||
+    raw.includes("mototaxi") ||
+    /\d{2,4}\s*c\.?c\.?\b/.test(raw) ||
+    /\b(zontes|italika|bajaj|benelli|ducati|ktm|harley|vespa|piaggio|cfmoto|keeway|motomel|triumph|kawasaki|enfield|carabela)\b/.test(
+      raw,
+    ) ||
+    /\bbmw\s*k\s*\d/.test(raw) ||
+    /\bbmw\s+(r|s|f|g|c)\s*\d/.test(raw) ||
+    /\bbmw\s+\w*\bgs\b/.test(raw) ||
+    /\bhonda\s+(cb|cbr|crf|nc|sh|pcx|elite|wave|tornado|africa)\b/.test(raw) ||
+    /\bafrica twin\b/.test(raw) ||
+    /\b(gsx|cbr|crf|yzf|ninja|goldwing|sportster|panigale|vstrom|nmax|k1600)\b/.test(
+      raw,
+    )
+  );
+}
+
+function textLooksLikeAuto(raw: string): boolean {
+  return (
+    raw.includes("automovil") ||
+    raw.includes("autoparticular") ||
+    raw.includes("auto particular") ||
+    raw.includes("camioneta") ||
+    raw.includes("pick up") ||
+    raw.includes("pickup")
+  );
+}
+
 export function inferVehicleTypeFromText(
   ...texts: (string | null | undefined)[]
 ): VehicleType | undefined {
-  for (const text of texts) {
-    if (!text?.trim()) continue;
-    const raw = text
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+  const normalized = texts
+    .map((text) => (text?.trim() ? normalizeVehicleText(text) : ""))
+    .filter(Boolean);
 
-    if (
-      raw.includes("automovil") ||
-      raw.includes("autoparticular") ||
-      raw.includes("auto particular") ||
-      raw.includes("camioneta") ||
-      raw.includes("pick up") ||
-      raw.includes("pickup")
-    ) {
-      return "auto";
-    }
-
-    if (
-      raw.includes("motocicleta") ||
-      raw.includes("motociclet") ||
-      raw.includes("motoneta") ||
-      raw.includes("ciclomotor") ||
-      /\bmoto\b/.test(raw) ||
-      raw.includes("scooter") ||
-      raw.includes("cuatrimoto") ||
-      raw.includes("trimoto") ||
-      raw.includes("motocross") ||
-      raw.includes("mototaxi")
-    ) {
-      return "moto";
-    }
-  }
-
+  // Motos first: CASIN marks bikes as "Particular", same as cars.
+  if (normalized.some(textLooksLikeMoto)) return "moto";
+  if (normalized.some(textLooksLikeAuto)) return "auto";
   return undefined;
 }
 
@@ -88,12 +106,17 @@ export function isNoCirculaEligibleVehicle(
 
 export function isMotoVehicle(vehicle: VehicleTypeHint): boolean {
   if (vehicle.vehicleType === "moto") return true;
-  if (vehicle.vehicleType === "auto") return false;
 
   const inferred =
     inferVehicleTypeFromText(vehicle.alias) ??
     inferVehicleTypeFromText(vehicle.brand);
-  return inferred === "moto";
+  if (inferred === "moto") return true;
+
+  return false;
+}
+
+export function vehicleRequiresVerification(vehicle: VehicleTypeHint): boolean {
+  return !isMotoVehicle(vehicle);
 }
 
 export interface NoCirculaOptions extends VehicleTypeHint {
@@ -134,28 +157,28 @@ const ENGOMADO_COLORS: Record<
   { background: string; border: string; label: string }
 > = {
   amarillo: {
-    background: "#e8c547",
-    border: "#c9a832",
+    background: "#f5c518",
+    border: "#d4a40b",
     label: "Amarillo",
   },
   rosa: {
-    background: "#e878a8",
-    border: "#c95688",
+    background: "#e21b70",
+    border: "#be185d",
     label: "Rosa",
   },
   rojo: {
-    background: "#d94a6a",
-    border: "#b83855",
+    background: "#dc2626",
+    border: "#b91c1c",
     label: "Rojo",
   },
   verde: {
-    background: "#4caf7a",
-    border: "#3d9363",
+    background: "#16a34a",
+    border: "#15803d",
     label: "Verde",
   },
   azul: {
-    background: "#4a90d9",
-    border: "#3570b0",
+    background: "#2563eb",
+    border: "#1d4ed8",
     label: "Azul",
   },
 };
@@ -192,9 +215,9 @@ export function formatEngomadoLabel(
 export function getEngomadoColors(engomado: EngomadoColor): {
   background: string;
   border: string;
+  label: string;
 } {
-  const colors = ENGOMADO_COLORS[engomado];
-  return { background: colors.background, border: colors.border };
+  return ENGOMADO_COLORS[engomado];
 }
 
 function getMexicoCityDate(now = new Date()): Date {

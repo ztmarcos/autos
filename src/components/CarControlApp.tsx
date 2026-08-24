@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getDocs, collection } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { useAuth } from "@/components/AuthProvider";
@@ -51,7 +52,13 @@ import {
   syncVehicleToCalendar,
   removeVehicleCalendarEvents,
 } from "@/lib/calendar-sync";
-import { getUserPreferences } from "@/lib/auth";
+import {
+  accessLinkPath,
+  extractAccessTokenFromPathname,
+  getStoredLinkToken,
+  getUserPreferences,
+  activateNotificationsOnAppOpen,
+} from "@/lib/auth";
 import { seedDemoSessionIfNeeded } from "@/lib/demo-seed";
 import { setupPushIfEnabled } from "@/lib/push-notifications";
 import { MX_RULES_SEED } from "@/lib/mx-rules";
@@ -60,6 +67,7 @@ import { subscribeToAllStateNews } from "@/lib/state-news";
 
 export function CarControlApp() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [rules, setRules] = useState<MxVehicleRule[]>(MX_RULES_SEED);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -96,6 +104,16 @@ export function CarControlApp() {
   }, [user]);
 
   useEffect(() => {
+    if (!user || user.sessionMode !== "link") return;
+    const token = getStoredLinkToken();
+    if (!token) return;
+    const current = extractAccessTokenFromPathname(window.location.pathname);
+    if (current === token) return;
+    if (window.location.pathname.startsWith("/admin")) return;
+    router.replace(accessLinkPath(token));
+  }, [router, user]);
+
+  useEffect(() => {
     if (!user) return;
     let cancelled = false;
 
@@ -103,6 +121,7 @@ export function CarControlApp() {
       if (user.sessionMode === "demo") {
         await seedDemoSessionIfNeeded();
       }
+      await activateNotificationsOnAppOpen(user.uid);
       const list = await listVehicles(user.uid);
       if (cancelled) return;
       const synced = await syncAllVehiclesGeneral(list);

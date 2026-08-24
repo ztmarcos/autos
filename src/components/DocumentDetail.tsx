@@ -7,6 +7,7 @@ import {
   deleteDocument,
   getDocumentDownloadUrl,
   getDocumentLabel,
+  hasOriginalDocumentFile,
   isPhoneFieldKey,
   renameDocument,
   updateDocumentFields,
@@ -115,6 +116,7 @@ export function DocumentDetail({
 
   const showCapturedSection =
     doc.status === "ready" && (editing || visibleFields.length > 0);
+  const hasFile = hasOriginalDocumentFile(doc);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
@@ -139,6 +141,7 @@ export function DocumentDetail({
 
         {!renaming && (
           <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {hasFile && (
             <button
               type="button"
               onClick={openOriginal}
@@ -146,6 +149,7 @@ export function DocumentDetail({
             >
               Ver original
             </button>
+            )}
             <button
               type="button"
               onClick={startRename}

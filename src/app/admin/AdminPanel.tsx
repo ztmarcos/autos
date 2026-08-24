@@ -11,6 +11,7 @@ import {
   formatVehicleLabel,
   getStoredAdminSecret,
   storeAdminSecret,
+  syncCasinClients,
   type CasinClientRow,
 } from "@/lib/casin-admin";
 
@@ -20,6 +21,7 @@ export function AdminPanel() {
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unifying, setUnifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<CasinClientRow[]>([]);
@@ -106,6 +108,27 @@ export function AdminPanel() {
     setExpanded({});
   }
 
+  async function handleUnifyClients() {
+    const secret = getStoredAdminSecret();
+    if (!secret) {
+      setError("Ingresa la clave de administrador");
+      return;
+    }
+
+    setUnifying(true);
+    setError(null);
+    try {
+      await syncCasinClients(secret);
+      await loadClients(secret, true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudieron unificar los clientes",
+      );
+    } finally {
+      setUnifying(false);
+    }
+  }
+
   async function handleCopyLink(client: CasinClientRow) {
     try {
       await navigator.clipboard.writeText(client.link);
@@ -181,18 +204,26 @@ export function AdminPanel() {
                 Clientes {APP_NAME}
               </h1>
               <p className="text-xs text-black/45">
-                {clients.length} clientes · {totalVehicles} autos
+                {clients.length} clientes · {totalVehicles} autos · 1 sesión por cliente
               </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
+              onClick={() => void handleUnifyClients()}
+              disabled={refreshing || unifying}
+              className="btn-primary px-3 py-2 disabled:opacity-50"
+            >
+              {unifying ? "Unificando…" : "Unificar clientes"}
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 const secret = getStoredAdminSecret();
                 if (secret) void loadClients(secret, true);
               }}
-              disabled={refreshing}
+              disabled={refreshing || unifying}
               className="btn-secondary px-3 py-2 disabled:opacity-50"
             >
               {refreshing ? "Actualizando…" : "Actualizar"}
@@ -288,6 +319,7 @@ export function AdminPanel() {
                               <CalcomaniaBadge
                                 plate={vehicle.plate}
                                 state={vehicle.state ?? "CDMX"}
+                                vehicle={vehicle}
                               />
                             </p>
                             <p className="truncate text-xs text-black/45">

@@ -666,7 +666,8 @@ export const syncCasinAutosScheduled = onSchedule(
   {
     schedule: "0 6 * * *",
     timeZone: "America/Mexico_City",
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
+    memory: "512MiB",
   },
   async () => {
     const result = await performCasinAutosSync(db);
@@ -676,7 +677,8 @@ export const syncCasinAutosScheduled = onSchedule(
 
 export const syncCasinAutosManual = onCall(
   {
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
+    memory: "512MiB",
     secrets: [casinAdminSecret],
   },
   async (request) => {

@@ -169,8 +169,9 @@ export function VehicleForm({
           cardExpiryDate: cardExpiryDate || undefined,
           state,
           vehicleType,
-          calcomania: calcomania || undefined,
-          verificationDate: verificationDate || undefined,
+          calcomania: vehicleType === "moto" ? undefined : calcomania || undefined,
+          verificationDate:
+            vehicleType === "moto" ? undefined : verificationDate || undefined,
           tenenciaDate: tenenciaDate || undefined,
           refrendoDate: refrendoDate || undefined,
           modelYear: modelYear ? parseInt(modelYear, 10) || undefined : undefined,
@@ -401,12 +402,16 @@ export function VehicleForm({
               </option>
             ))}
           </select>
-          {vehicleType === "moto" && state === "CDMX" && (
+          {vehicleType === "moto" && (
             <p className="mt-1 text-[12px] text-black/45">
-              Las motocicletas están exentas del Hoy No Circula y de contingencia ambiental.
+              En México las motocicletas no verifican
+              {state === "CDMX"
+                ? " y están exentas del Hoy No Circula y de contingencia ambiental."
+                : "."}
             </p>
           )}
         </Field>
+        {vehicleType !== "moto" && (
         <Field label="Holograma de verificación">
           <select
             className="field-input"
@@ -420,12 +425,13 @@ export function VehicleForm({
               </option>
             ))}
           </select>
-          {state === "CDMX" && vehicleType !== "moto" && (
+          {state === "CDMX" && (
             <p className="mt-1 text-[12px] text-black/45">
               Con holograma 0 circulas todos los días, salvo contingencia ambiental.
             </p>
           )}
         </Field>
+        )}
         <Field label="NIV / No. de serie (opcional)">
           <input
             className="field-input"
@@ -468,6 +474,7 @@ export function VehicleForm({
             placeholder="Ejemplo: 01/06/2031"
           />
         </Field>
+        {vehicleType !== "moto" && (
         <Field label="Verificación">
           <input
             type="date"
@@ -476,6 +483,7 @@ export function VehicleForm({
             onChange={(e) => setVerificationDate(e.target.value)}
           />
         </Field>
+        )}
         <Field label="Tenencia">
           <input
             type="date"

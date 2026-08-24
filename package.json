@@ -13,6 +13,7 @@
     "cap:ios": "npm run cap:sync && npx cap open ios",
     "firebase:deploy": "npm run build:all && firebase deploy",
     "firebase:deploy:demo": "npm run build:demo && firebase deploy --only hosting:autos-fa58f-demo",
+    "demo:fleet-pdf": "node scripts/generate-demo-fleet-pdf.mjs",
     "functions:build": "npm --prefix functions run build"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "pdfkit": "^0.17.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

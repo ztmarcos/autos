@@ -86,6 +86,7 @@ export interface Vehicle {
   includeInEmail: boolean;
   calendarEventIds?: Record<string, string>;
   casinAutoId?: string;
+  plateLocked?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +120,7 @@ export interface VehicleDocument {
   mimeType: string;
   fileName: string;
   displayName?: string;
+  source?: string;
   detectedType?: DocumentType;
   detectedTypeLabel?: string;
   confidence?: number;

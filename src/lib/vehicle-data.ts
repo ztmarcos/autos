@@ -1,6 +1,11 @@
 import { getSchema } from "@/config/document-schemas";
 import { getStateName } from "@/lib/mx-rules";
-import { formatCalcomaniaLabel } from "@/lib/no-circula";
+import { formatCalcomaniaLabel, isMotoVehicle } from "@/lib/no-circula";
+import {
+  resolveRefrendoDate,
+  resolveTenenciaDate,
+  resolveVerificationDate,
+} from "@/lib/expiry-cycle";
 import type { DocumentType, Vehicle, VehicleDocument, VehicleEvent } from "@/lib/types";
 import { formatVehicleDisplayDate } from "@/lib/vehicles";
 import { parseModelYear } from "@/lib/vehicle-card-map";
@@ -73,6 +78,31 @@ export function getLatestReadyDocument(
     )[0];
 }
 
+export function getCapturedDocument(
+  documents: VehicleDocument[],
+  type: DocumentType,
+): VehicleDocument | undefined {
+  const casin = documents.find(
+    (doc) =>
+      doc.detectedType === type &&
+      doc.status === "ready" &&
+      doc.source === "casin",
+  );
+  return casin ?? getLatestReadyDocument(documents, type);
+}
+
+export function mergeDocumentFields(
+  documents: VehicleDocument[],
+  type: DocumentType,
+): Record<string, string | number | null> {
+  const latest = getLatestReadyDocument(documents, type);
+  const captured = getCapturedDocument(documents, type);
+  return {
+    ...(latest?.extractedFields ?? {}),
+    ...(captured?.extractedFields ?? {}),
+  };
+}
+
 export function resolveModelYear(
   vehicle: Vehicle,
   documents: VehicleDocument[] = [],
@@ -122,7 +152,7 @@ export function getGeneralSections(
   pushField(fields, "Alias", vehicle.alias);
   pushField(fields, "Placa", vehicle.plate);
   pushField(fields, "Estado", getStateName(vehicle.state));
-  if (vehicle.calcomania) {
+  if (vehicle.calcomania && !isMotoVehicle(vehicle)) {
     pushField(fields, "Holograma", formatCalcomaniaLabel(vehicle.calcomania));
   }
   pushField(fields, "Marca", vehicle.brand);
@@ -135,9 +165,11 @@ export function getGeneralSections(
   if (vehicle.cylinders != null) {
     pushField(fields, "Cilindros", vehicle.cylinders);
   }
-  pushDateField(fields, "Verificación", vehicle.verificationDate);
-  pushDateField(fields, "Tenencia", vehicle.tenenciaDate);
-  pushDateField(fields, "Refrendo", vehicle.refrendoDate);
+  if (!isMotoVehicle(vehicle)) {
+    pushDateField(fields, "Verificación", resolveVerificationDate(vehicle));
+  }
+  pushDateField(fields, "Tenencia", resolveTenenciaDate(vehicle.tenenciaDate));
+  pushDateField(fields, "Refrendo", resolveRefrendoDate(vehicle.refrendoDate));
   if (vehicle.serviceKm != null) {
     pushField(fields, "Km servicio", `${vehicle.serviceKm.toLocaleString("es-MX")} km`);
   }
@@ -290,9 +322,13 @@ export function getServiciosSections(
 export function getTramitesSections(
   documents: VehicleDocument[],
   events: VehicleEvent[] = [],
+  vehicle?: Vehicle,
 ): DataSection[] {
+  const skipVerification = vehicle ? isMotoVehicle(vehicle) : false;
   const types: Array<{ type: DocumentType; fallback: string }> = [
-    { type: "verificacion", fallback: "Verificación" },
+    ...(!skipVerification
+      ? [{ type: "verificacion" as const, fallback: "Verificación" }]
+      : []),
     { type: "tenencia", fallback: "Tenencia" },
     { type: "factura", fallback: "Factura" },
   ];
@@ -319,7 +355,11 @@ export function getTramitesSections(
     }
   }
 
-  const tramiteEvents = events.filter((event) => event.type !== "servicio");
+  const tramiteEvents = events.filter((event) => {
+    if (event.type === "servicio") return false;
+    if (skipVerification && event.type === "verificacion") return false;
+    return true;
+  });
   if (tramiteEvents.length > 0) {
     sections.push({
       title: "Historial",
@@ -371,6 +411,6 @@ export function tabHasContent(
     case "servicios":
       return getServiciosSections(vehicle, documents, events).length > 0;
     case "tramites":
-      return getTramitesSections(documents, events).length > 0;
+      return getTramitesSections(documents, events, vehicle).length > 0;
   }
 }

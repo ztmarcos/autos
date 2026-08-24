@@ -23,10 +23,17 @@ import {
   getUrgencyStatus,
 } from "@/lib/mx-rules";
 import {
+  resolveRefrendoDate,
+  resolveTenenciaDate,
+  resolveVerificationDate,
+} from "@/lib/expiry-cycle";
+import {
   normalizeCalcomania,
   normalizeCardDateLiteral,
 } from "@/lib/vehicle-card-map";
 import { parseVehicleDateLiteral } from "@/lib/dates";
+import { isMotoVehicle } from "@/lib/no-circula";
+import { resolveVehicleState } from "@/lib/mx-plates";
 
 function toDate(value: Timestamp | Date | undefined): Date {
   if (!value) return new Date();
@@ -46,7 +53,7 @@ function mapVehicle(id: string, data: Record<string, unknown>): Vehicle {
     userId: data.userId as string,
     alias: data.alias as string | undefined,
     plate: data.plate as string,
-    state: data.state as string,
+    state: resolveVehicleState(data.plate as string, data.state as string),
     vehicleType: (data.vehicleType as Vehicle["vehicleType"]) ?? "auto",
     calcomania: normalizeCalcomania(data.calcomania),
     brand: data.brand as string | undefined,
@@ -73,6 +80,7 @@ function mapVehicle(id: string, data: Record<string, unknown>): Vehicle {
     includeInEmail: (data.includeInEmail as boolean) ?? true,
     calendarEventIds: data.calendarEventIds as Record<string, string> | undefined,
     casinAutoId: data.casinAutoId as string | undefined,
+    plateLocked: data.plateLocked === true,
     createdAt: toDate(data.createdAt as Timestamp),
     updatedAt: toDate(data.updatedAt as Timestamp),
   };
@@ -153,34 +161,39 @@ export function getUpcomingItems(
 ): UpcomingItem[] {
   const items: UpcomingItem[] = [];
 
-  if (vehicle.verificationDate) {
-    const days = computeDaysUntil(vehicle.verificationDate);
-    items.push({
-      type: "verificacion",
-      label: "Verificación",
-      date: vehicle.verificationDate,
-      daysUntil: days,
-      overdue: days < 0,
-    });
+  if (!isMotoVehicle(vehicle)) {
+    const verificationDate = resolveVerificationDate(vehicle);
+    if (verificationDate) {
+      const days = computeDaysUntil(verificationDate);
+      items.push({
+        type: "verificacion",
+        label: "Verificación",
+        date: verificationDate,
+        daysUntil: days,
+        overdue: days < 0,
+      });
+    }
   }
 
-  if (vehicle.tenenciaDate) {
-    const days = computeDaysUntil(vehicle.tenenciaDate);
+  const tenenciaDate = resolveTenenciaDate(vehicle.tenenciaDate);
+  if (tenenciaDate) {
+    const days = computeDaysUntil(tenenciaDate);
     items.push({
       type: "tenencia",
       label: "Tenencia",
-      date: vehicle.tenenciaDate,
+      date: tenenciaDate,
       daysUntil: days,
       overdue: days < 0,
     });
   }
 
-  if (vehicle.refrendoDate) {
-    const days = computeDaysUntil(vehicle.refrendoDate);
+  const refrendoDate = resolveRefrendoDate(vehicle.refrendoDate);
+  if (refrendoDate) {
+    const days = computeDaysUntil(refrendoDate);
     items.push({
       type: "refrendo",
       label: "Refrendo",
-      date: vehicle.refrendoDate,
+      date: refrendoDate,
       daysUntil: days,
       overdue: days < 0,
     });
@@ -200,13 +213,13 @@ export function getUpcomingItems(
   if (insuranceExpiry) {
     const policyDate = parseVehicleDateLiteral(insuranceExpiry) ?? insuranceExpiry;
     const days = computeDaysUntil(policyDate);
-    if (Number.isFinite(days)) {
+    if (Number.isFinite(days) && days >= 0) {
       items.push({
         type: "seguro",
         label: "Póliza",
         date: parseVehicleDateLiteral(insuranceExpiry) ?? insuranceExpiry,
         daysUntil: days,
-        overdue: days < 0,
+        overdue: false,
       });
     }
   }
@@ -254,12 +267,22 @@ export function getVehicleExpiryTags(
     });
   };
 
-  pushTag("verificacion", "Verificación", vehicle.verificationDate);
-  pushTag("tenencia", "Tenencia", vehicle.tenenciaDate);
-  pushTag("refrendo", "Refrendo", vehicle.refrendoDate);
+  if (!isMotoVehicle(vehicle)) {
+    pushTag(
+      "verificacion",
+      "Verificación",
+      resolveVerificationDate(vehicle),
+    );
+  }
+  pushTag("tenencia", "Tenencia", resolveTenenciaDate(vehicle.tenenciaDate));
+  pushTag("refrendo", "Refrendo", resolveRefrendoDate(vehicle.refrendoDate));
   pushTag("servicio", "Servicio", vehicle.serviceDate);
   if (insuranceExpiry) {
-    pushTag("seguro", "Póliza", insuranceExpiry);
+    const normalized = parseVehicleDateLiteral(insuranceExpiry) ?? insuranceExpiry;
+    const daysUntil = computeDaysUntil(normalized);
+    if (Number.isFinite(daysUntil) && daysUntil >= 0) {
+      pushTag("seguro", "Póliza", insuranceExpiry);
+    }
   }
 
   return tags.sort(
@@ -308,16 +331,15 @@ export function getVehicleDatesLine(
   vehicle: Vehicle,
   insuranceExpiry?: string,
 ): string {
+  const verificationDate = resolveVerificationDate(vehicle);
+  const tenenciaDate = resolveTenenciaDate(vehicle.tenenciaDate);
+  const refrendoDate = resolveRefrendoDate(vehicle.refrendoDate);
   const parts = [
-    vehicle.verificationDate
-      ? `Verificación ${formatVehicleDisplayDate(vehicle.verificationDate)}`
+    verificationDate
+      ? `Verificación ${formatVehicleDisplayDate(verificationDate)}`
       : null,
-    vehicle.tenenciaDate
-      ? `Tenencia ${formatVehicleDisplayDate(vehicle.tenenciaDate)}`
-      : null,
-    vehicle.refrendoDate
-      ? `Refrendo ${formatVehicleDisplayDate(vehicle.refrendoDate)}`
-      : null,
+    tenenciaDate ? `Tenencia ${formatVehicleDisplayDate(tenenciaDate)}` : null,
+    refrendoDate ? `Refrendo ${formatVehicleDisplayDate(refrendoDate)}` : null,
     vehicle.serviceDate
       ? `Servicio ${formatVehicleDisplayDate(vehicle.serviceDate)}`
       : null,

@@ -7,6 +7,7 @@ import { sendPushToUser } from "./push";
 import type { StateNewsAlert } from "./state-news-sources";
 import { alertAppliesToVehicle } from "./vehicle-news-utils";
 import { isDeliverableEmail } from "./vehicle-email";
+import { userHasOpenedApp } from "./expiry-cycle";
 
 function notifiedDocId(userId: string, alertId: string): string {
   return `${userId}_${alertId}`;
@@ -115,7 +116,12 @@ export async function notifyUsersOfNewStateAlerts(
       });
 
       const email = userData.email as string | undefined;
-      if (prefs.emailEnabled !== false && mailReady && isDeliverableEmail(email)) {
+      if (
+        userHasOpenedApp(userData) &&
+        prefs.emailEnabled !== false &&
+        mailReady &&
+        isDeliverableEmail(email)
+      ) {
         try {
           await sendEmail(
             email!,

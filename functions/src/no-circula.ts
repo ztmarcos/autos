@@ -8,44 +8,62 @@ export interface VehicleTypeHint {
   brand?: string;
 }
 
+function normalizeVehicleText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function textLooksLikeMoto(raw: string): boolean {
+  return (
+    raw.includes("motocicleta") ||
+    raw.includes("motociclet") ||
+    raw.includes("motoneta") ||
+    raw.includes("ciclomotor") ||
+    /\bmoto\b/.test(raw) ||
+    raw.includes("scooter") ||
+    raw.includes("cuatrimoto") ||
+    raw.includes("trimoto") ||
+    raw.includes("motocross") ||
+    raw.includes("mototaxi") ||
+    /\d{2,4}\s*c\.?c\.?\b/.test(raw) ||
+    /\b(zontes|italika|bajaj|benelli|ducati|ktm|harley|vespa|piaggio|cfmoto|keeway|motomel|triumph|kawasaki|enfield|carabela)\b/.test(
+      raw,
+    ) ||
+    /\bbmw\s*k\s*\d/.test(raw) ||
+    /\bbmw\s+(r|s|f|g|c)\s*\d/.test(raw) ||
+    /\bbmw\s+\w*\bgs\b/.test(raw) ||
+    /\bhonda\s+(cb|cbr|crf|nc|sh|pcx|elite|wave|tornado|africa)\b/.test(raw) ||
+    /\bafrica twin\b/.test(raw) ||
+    /\b(gsx|cbr|crf|yzf|ninja|goldwing|sportster|panigale|vstrom|nmax|k1600)\b/.test(
+      raw,
+    )
+  );
+}
+
+function textLooksLikeAuto(raw: string): boolean {
+  return (
+    raw.includes("automovil") ||
+    raw.includes("autoparticular") ||
+    raw.includes("auto particular") ||
+    raw.includes("camioneta") ||
+    raw.includes("pick up") ||
+    raw.includes("pickup")
+  );
+}
+
 export function inferVehicleTypeFromText(
   ...texts: (string | null | undefined)[]
 ): VehicleType | undefined {
-  for (const text of texts) {
-    if (!text?.trim()) continue;
-    const raw = text
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+  const normalized = texts
+    .map((text) => (text?.trim() ? normalizeVehicleText(text) : ""))
+    .filter(Boolean);
 
-    if (
-      raw.includes("automovil") ||
-      raw.includes("autoparticular") ||
-      raw.includes("auto particular") ||
-      raw.includes("camioneta") ||
-      raw.includes("pick up") ||
-      raw.includes("pickup")
-    ) {
-      return "auto";
-    }
-
-    if (
-      raw.includes("motocicleta") ||
-      raw.includes("motociclet") ||
-      raw.includes("motoneta") ||
-      raw.includes("ciclomotor") ||
-      /\bmoto\b/.test(raw) ||
-      raw.includes("scooter") ||
-      raw.includes("cuatrimoto") ||
-      raw.includes("trimoto") ||
-      raw.includes("motocross") ||
-      raw.includes("mototaxi")
-    ) {
-      return "moto";
-    }
-  }
-
+  // Motos first: CASIN marks bikes as "Particular", same as cars.
+  if (normalized.some(textLooksLikeMoto)) return "moto";
+  if (normalized.some(textLooksLikeAuto)) return "auto";
   return undefined;
 }
 
@@ -91,12 +109,17 @@ export function isNoCirculaEligibleVehicle(
 
 export function isMotoVehicle(vehicle: VehicleTypeHint): boolean {
   if (vehicle.vehicleType === "moto") return true;
-  if (vehicle.vehicleType === "auto") return false;
 
   const inferred =
     inferVehicleTypeFromText(vehicle.alias) ??
     inferVehicleTypeFromText(vehicle.brand);
-  return inferred === "moto";
+  if (inferred === "moto") return true;
+
+  return false;
+}
+
+export function vehicleRequiresVerification(vehicle: VehicleTypeHint): boolean {
+  return !isMotoVehicle(vehicle);
 }
 
 export function isExemptCalcomania(calcomania?: string): boolean {

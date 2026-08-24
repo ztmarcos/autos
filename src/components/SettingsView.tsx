@@ -9,6 +9,7 @@ import { isNativePlatform } from "@/lib/local-notifications";
 import { setupPushIfEnabled } from "@/lib/push-notifications";
 import { requestCalendarPermission } from "@/lib/calendar-sync";
 import { refreshPwaApplication } from "@/lib/pwa-refresh";
+import { InstallAppHint } from "@/components/InstallAppHint";
 
 interface SettingsViewProps {
   userId: string;
@@ -82,7 +83,8 @@ export function SettingsView({ userId, email, onBack }: SettingsViewProps) {
             onChange={(v) => update({ emailEnabled: v })}
           />
           <p className="text-[11px] text-black/40">
-            Recordatorios cuando toque, bienvenida y confirmación al registrar un auto.
+            Se activan la primera vez que entras a la app. Recordatorios de
+            verificación y tenencia, y puedes apagarlas aquí.
           </p>
           <SettingToggle
             label="Alertas en iPhone"
@@ -109,6 +111,10 @@ export function SettingsView({ userId, email, onBack }: SettingsViewProps) {
             disabled={!native}
             hint={!native ? "Disponible en app iOS" : undefined}
           />
+        </section>
+
+        <section className="px-4 py-4">
+          <InstallAppHint variant="full" />
         </section>
 
         <section className="px-4 py-4">

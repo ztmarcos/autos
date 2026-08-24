@@ -10,6 +10,12 @@ import { VehicleBrandLogo } from "@/components/VehicleBrandLogo";
 import { VehicleExpiryTags } from "@/components/VehicleExpiryTags";
 import { APP_NAME } from "@/config/app";
 import { AppLogo } from "@/components/AppLogo";
+import {
+  ONBOARDING_STEP1_KEY,
+  OnboardingStepBanner,
+  useOnboardingStep,
+} from "@/components/OnboardingStepBanner";
+import { InstallAppHint } from "@/components/InstallAppHint";
 
 interface HomeViewProps {
   vehicles: Vehicle[];
@@ -44,6 +50,9 @@ export function HomeView({
   onSelect,
   onAdd,
 }: HomeViewProps) {
+  const { dismissed: step1Done, dismiss: dismissStep1 } =
+    useOnboardingStep(ONBOARDING_STEP1_KEY);
+
   if (vehicles.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
@@ -84,6 +93,8 @@ export function HomeView({
           >
             Auto nuevo
           </button>
+
+          <InstallAppHint className="mt-8 text-left" />
         </div>
       </div>
     );
@@ -91,19 +102,36 @@ export function HomeView({
 
   return (
     <div className="relative flex-1 bg-[var(--background)] pb-24">
-      <ul className="divide-y divide-[var(--border)]">
+      {!step1Done && (
+        <OnboardingStepBanner
+          step={1}
+          className="mx-4 mt-3"
+          title="Entra a tu vehículo"
+          body="Toca tu auto para ver la información y seguir al siguiente paso."
+          onDismiss={dismissStep1}
+        />
+      )}
+      <InstallAppHint className="mx-4 mt-3" />
+      <ul className="mt-1 divide-y divide-[var(--border)]">
         {vehicles.map((vehicle) => (
           <li key={vehicle.id}>
             <button
               type="button"
-              onClick={() => onSelect(vehicle)}
+              onClick={() => {
+                dismissStep1();
+                onSelect(vehicle);
+              }}
               className="flex w-full items-center gap-3 bg-[var(--surface)] px-4 py-4 text-left transition hover:bg-[var(--accent-soft)]"
             >
               <VehicleBrandLogo vehicle={vehicle} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 text-[15px] font-medium">
                   {getVehicleDisplayName(vehicle)}
-                  <CalcomaniaBadge plate={vehicle.plate} state={vehicle.state} />
+                  <CalcomaniaBadge
+                    plate={vehicle.plate}
+                    state={vehicle.state}
+                    vehicle={vehicle}
+                  />
                 </p>
                 <p className="mt-0.5 text-[13px] text-black/50">
                   {getVehicleMetaLine(vehicle)}

@@ -1,3 +1,4 @@
+import { isMotoVehicle } from "./no-circula";
 import type { DocumentData } from "firebase-admin/firestore";
 
 export interface VehicleEmailSummary {
@@ -6,6 +7,8 @@ export interface VehicleEmailSummary {
   state: string;
   stateName: string;
   brand?: string;
+  vehicleType?: string;
+  alias?: string;
   verificationDate?: string;
   tenenciaDate?: string;
   refrendoDate?: string;
@@ -41,7 +44,15 @@ export function vehicleFromFirestore(data: DocumentData): VehicleEmailSummary {
     state,
     stateName: STATE_NAMES[state] ?? state,
     brand: data.brand as string | undefined,
-    verificationDate: data.verificationDate as string | undefined,
+    vehicleType: data.vehicleType as string | undefined,
+    alias: data.alias as string | undefined,
+    verificationDate: isMotoVehicle({
+      vehicleType: data.vehicleType as string | undefined,
+      alias: data.alias as string | undefined,
+      brand: data.brand as string | undefined,
+    })
+      ? undefined
+      : (data.verificationDate as string | undefined),
     tenenciaDate: data.tenenciaDate as string | undefined,
     refrendoDate: data.refrendoDate as string | undefined,
     modelYear: data.modelYear as number | undefined,
@@ -53,7 +64,10 @@ export function vehicleFromFirestore(data: DocumentData): VehicleEmailSummary {
 export function vehicleDetailLines(vehicle: VehicleEmailSummary): string[] {
   const lines = [`Placa: ${vehicle.plate}`, `Estado: ${vehicle.stateName}`];
   if (vehicle.brand) lines.push(`Marca: ${vehicle.brand}`);
-  if (vehicle.verificationDate) {
+  if (
+    vehicle.verificationDate &&
+    !isMotoVehicle(vehicle)
+  ) {
     lines.push(`Verificación: ${vehicle.verificationDate}`);
   }
   if (vehicle.tenenciaDate) lines.push(`Tenencia: ${vehicle.tenenciaDate}`);

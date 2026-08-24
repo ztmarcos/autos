@@ -11,7 +11,13 @@ import {
   type User as FirebaseUser,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { seedDemoSessionIfNeeded } from "@/lib/demo-seed";
 import { isNativePlatform } from "@/lib/local-notifications";
@@ -67,6 +73,19 @@ export function getStoredLinkToken(): string | null {
   if (typeof window === "undefined") return null;
   const token = sessionStorage.getItem(LINK_TOKEN_KEY)?.trim();
   return token || null;
+}
+
+export function accessLinkPath(token: string): string {
+  return `/acceso/${token.trim()}/`;
+}
+
+export function extractAccessTokenFromPathname(
+  pathname: string | null | undefined,
+): string | null {
+  const match = String(pathname ?? "").match(/\/acceso\/([^/]+)\/?$/);
+  const token = match?.[1]?.trim();
+  if (!token || token === "_") return null;
+  return token;
 }
 
 export function getStoredSession(): AppUser | null {
@@ -265,10 +284,29 @@ async function ensureUserProfile(user: AppUser) {
       email: user.email,
       displayName,
       preferences: DEFAULT_PREFERENCES,
+      appOpenedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    return;
   }
+
+  await activateNotificationsOnAppOpen(user.uid);
+}
+
+/** First time the user opens the app, email reminders for vencimientos turn on. */
+export async function activateNotificationsOnAppOpen(
+  userId: string,
+): Promise<void> {
+  const ref = doc(db, "users", userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists() || snap.data().appOpenedAt) return;
+
+  await updateDoc(ref, {
+    appOpenedAt: serverTimestamp(),
+    "preferences.emailEnabled": true,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function getUserPreferences(

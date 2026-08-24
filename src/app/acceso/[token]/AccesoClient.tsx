@@ -1,28 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { signInWithAccessLink } from "@/lib/auth";
+import { CarControlApp } from "@/components/CarControlApp";
 import { useAuth } from "@/components/AuthProvider";
 import { APP_NAME } from "@/config/app";
 import { AppLogo } from "@/components/AppLogo";
-
-function extractTokenFromPathname(pathname: string): string | null {
-  const match = pathname.match(/\/acceso\/([^/]+)\/?$/);
-  const token = match?.[1]?.trim();
-  if (!token || token === "_") return null;
-  return token;
-}
+import {
+  extractAccessTokenFromPathname,
+  getCurrentAppUser,
+  getStoredLinkToken,
+  signInWithAccessLink,
+} from "@/lib/auth";
 
 export function AccesoClient({ fallbackToken }: { fallbackToken?: string }) {
-  const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+
     const fromPath =
       typeof window !== "undefined"
-        ? extractTokenFromPathname(window.location.pathname)
+        ? extractAccessTokenFromPathname(window.location.pathname)
         : null;
     const token = fromPath || fallbackToken?.trim() || null;
 
@@ -31,13 +31,17 @@ export function AccesoClient({ fallbackToken }: { fallbackToken?: string }) {
       return;
     }
 
-    let active = true;
+    if (getStoredLinkToken() === token && getCurrentAppUser()) {
+      setReady(true);
+      return;
+    }
 
+    let active = true;
     void signInWithAccessLink(token)
       .then(() => {
         if (!active) return;
         refresh();
-        router.replace("/");
+        setReady(true);
       })
       .catch((err) => {
         if (!active) return;
@@ -49,17 +53,27 @@ export function AccesoClient({ fallbackToken }: { fallbackToken?: string }) {
     return () => {
       active = false;
     };
-  }, [fallbackToken, refresh, router]);
+  }, [fallbackToken, loading, refresh]);
 
-  return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[var(--background)] px-6">
-      <AppLogo size="md" />
-      <h1 className="text-xl font-semibold tracking-tight">{APP_NAME}</h1>
-      {error ? (
+  if (error) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[var(--background)] px-6">
+        <AppLogo size="md" />
+        <h1 className="text-xl font-semibold tracking-tight">{APP_NAME}</h1>
         <p className="max-w-sm text-center text-sm text-black/70">{error}</p>
-      ) : (
+      </div>
+    );
+  }
+
+  if (!ready || loading || !user) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[var(--background)] px-6">
+        <AppLogo size="md" />
+        <h1 className="text-xl font-semibold tracking-tight">{APP_NAME}</h1>
         <p className="text-sm text-black/50">Entrando a tu sesión…</p>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return <CarControlApp />;
 }

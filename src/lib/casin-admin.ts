@@ -11,6 +11,7 @@ export interface CasinClientVehicle {
   brand?: string;
   modelYear?: number;
   ownerName?: string;
+  vehicleType?: string;
 }
 
 export interface CasinClientRow {
@@ -37,6 +38,16 @@ export function clearAdminSecret(): void {
   sessionStorage.removeItem(ADMIN_SECRET_KEY);
 }
 
+export interface CasinSyncResult {
+  groups: number;
+  usersCreated: number;
+  linksCreated: number;
+  linksRevoked: number;
+  vehiclesUpserted: number;
+  vehiclesRemoved?: number;
+  generatedAt?: string;
+}
+
 export async function fetchCasinClients(
   adminSecret: string,
 ): Promise<CasinClientRow[]> {
@@ -47,6 +58,18 @@ export async function fetchCasinClients(
 
   const result = await listClients({ adminSecret: adminSecret.trim() });
   return result.data.clients ?? [];
+}
+
+export async function syncCasinClients(
+  adminSecret: string,
+): Promise<CasinSyncResult> {
+  const syncClients = httpsCallable<
+    { adminSecret: string },
+    CasinSyncResult
+  >(functions, "syncCasinAutosManual", { timeout: 300000 });
+
+  const result = await syncClients({ adminSecret: adminSecret.trim() });
+  return result.data;
 }
 
 export function formatVehicleLabel(vehicle: CasinClientVehicle): string {

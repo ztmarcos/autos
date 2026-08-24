@@ -5,6 +5,7 @@ import type { VehicleDocument } from "@/lib/types";
 import {
   getDocumentDownloadUrl,
   getThumbnailUrl,
+  hasOriginalDocumentFile,
   isPdfDocument,
 } from "@/lib/documents";
 import { MobilePdfScroll } from "@/components/MobilePdfScroll";
@@ -111,12 +112,20 @@ export function DocumentThumbnail({
   const [thumbLoading, setThumbLoading] = useState(false);
   const isPdf = isPdfDocument(doc);
   const isViewer = variant === "viewer";
+  const hasFile = hasOriginalDocumentFile(doc);
 
   useEffect(() => {
     let active = true;
     setImgFailed(false);
     setThumb(null);
     setThumbLoading(isPdf && !isViewer);
+
+    if (!hasFile) {
+      setThumbLoading(false);
+      return () => {
+        active = false;
+      };
+    }
 
     getThumbnailUrl(doc)
       .then((url) => {
@@ -138,7 +147,7 @@ export function DocumentThumbnail({
     return () => {
       active = false;
     };
-  }, [doc, isPdf, isViewer]);
+  }, [doc, hasFile, isPdf, isViewer]);
 
   const showPdfViewer = isPdf && isViewer;
   const showImage = !isViewer && thumb && !imgFailed;
@@ -150,7 +159,14 @@ export function DocumentThumbnail({
 
   return (
     <div className={frameClass}>
-      {showPdfViewer ? (
+      {isViewer && !hasFile ? (
+        <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+          <p className="text-sm font-medium text-black/70">Datos capturados</p>
+          <p className="text-[13px] leading-5 text-black/45">
+            Esta póliza se tomó del CRM. Sube el PDF si quieres ver el documento original.
+          </p>
+        </div>
+      ) : showPdfViewer ? (
         <PdfInlineViewer storagePath={doc.storagePath} />
       ) : showViewerImage && thumb ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -176,7 +192,7 @@ export function DocumentThumbnail({
         </div>
       ) : isViewer ? (
         <div className="flex h-full items-center justify-center bg-black/[0.02]">
-          <span className="text-sm text-black/40">Cargando documento…</span>
+          <span className="text-sm text-black/40">Sin archivo para mostrar</span>
         </div>
       ) : (
         <div className="flex h-full min-h-28 items-center justify-center">

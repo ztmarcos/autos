@@ -7,10 +7,12 @@ import {
   resolveCalcomaniaFromVerificacionFields,
 } from "@/lib/vehicle-card-map";
 import { isMotoVehicle, resolveVehicleTypeFromFields } from "@/lib/no-circula";
+import { inferStateFromPlate } from "@/lib/mx-plates";
 import { getLatestReadyDocument } from "@/lib/vehicle-data";
 import { readPolizaExpiryFromFields } from "@/lib/documents";
 import { listDocumentsForVehicle } from "@/lib/documents";
 import { updateVehicle } from "@/lib/vehicles";
+import { buildExpiryRolloverPatch } from "@/lib/expiry-cycle";
 
 function parseCylinders(
   value: string | number | null | undefined,
@@ -108,7 +110,10 @@ function applyTarjetaFields(
   const alias = [marca, line].filter(Boolean).join(" ");
   fillIfEmpty(patch, vehicle, "alias", alias || undefined);
 
-  if (isUnset(vehicle.state) && fields.entidad) {
+  const plateState = inferStateFromPlate(fields.placa ? String(fields.placa) : vehicle.plate);
+  if (plateState && vehicle.state !== plateState) {
+    patch.state = plateState;
+  } else if (isUnset(vehicle.state) && fields.entidad) {
     const state = mapEntidadToStateCode(String(fields.entidad));
     if (state) patch.state = state;
   }
@@ -256,7 +261,12 @@ export function vehiclePatchDiffers(
 
 export async function syncVehicleGeneral(vehicle: Vehicle): Promise<Vehicle> {
   const documents = await listDocumentsForVehicle(vehicle.id);
-  const patch = buildVehicleGeneralPatch(vehicle, documents);
+  const fromDocs = buildVehicleGeneralPatch(vehicle, documents);
+  const merged = { ...vehicle, ...fromDocs };
+  const patch = {
+    ...fromDocs,
+    ...buildExpiryRolloverPatch(merged),
+  };
   if (!vehiclePatchDiffers(vehicle, patch)) return vehicle;
   await updateVehicle(vehicle.id, patch);
   return { ...vehicle, ...patch };

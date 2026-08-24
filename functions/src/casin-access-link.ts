@@ -6,7 +6,8 @@ import {
   buildAccessLinkUrl,
   provisionVehiclesForAccessLink,
 } from "./casin-autos-sync";
-import { isValidAccessToken, normalizeCasinEmail } from "./casin-autos-map";
+import { casinClientNameKey, casinVehicleIdentityKey, isValidAccessToken, normalizeCasinEmail, parseVehicleDateLiteral, todayInMexicoCity } from "./casin-autos-map";
+import { resolveVehicleState } from "./mx-plates";
 
 const EXCHANGE_MIN_INTERVAL_MS = 1000;
 
@@ -28,6 +29,8 @@ export interface CasinClientVehicleItem {
   brand?: string;
   modelYear?: number;
   ownerName?: string;
+  niv?: string;
+  vehicleType?: string;
 }
 
 export interface CasinClientDirectoryItem {
@@ -78,7 +81,7 @@ async function ensureUserProfile(
       displayName,
       source: "casin-link",
       preferences: {
-        emailEnabled: true,
+        emailEnabled: false,
         monthlyReport: false,
         localNotifications: true,
         calendarSync: false,
@@ -99,6 +102,21 @@ async function ensureUserProfile(
     },
     { merge: true },
   );
+}
+
+async function activateNotificationsOnAppOpen(
+  db: Firestore,
+  userId: string,
+): Promise<void> {
+  const userRef = db.collection("users").doc(userId);
+  const snap = await userRef.get();
+  if (!snap.exists || snap.data()?.appOpenedAt) return;
+
+  await userRef.update({
+    appOpenedAt: admin.firestore.FieldValue.serverTimestamp(),
+    "preferences.emailEnabled": true,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 async function ensureAuthUserExists(
@@ -158,10 +176,15 @@ export async function exchangeAccessLink(
 
   await ensureAuthUserExists(userId, email, displayName);
   await ensureUserProfile(db, userId, email, displayName);
+  await activateNotificationsOnAppOpen(db, userId);
 
   try {
     const payload = await fetchCasinAutosPayload();
-    const autosById = new Map(payload.data.map((auto) => [auto.id, auto]));
+    const autosById = new Map(
+      payload.data
+        .filter((auto) => auto.id?.trim())
+        .map((auto) => [auto.id, auto]),
+    );
     await provisionVehiclesForAccessLink(
       db,
       userId,
@@ -218,22 +241,39 @@ export async function listCasinClients(
   ]);
 
   const vehiclesByUser = new Map<string, CasinClientVehicleItem[]>();
+  const today = todayInMexicoCity();
 
   for (const vehicleDoc of vehiclesSnap.docs) {
     const data = vehicleDoc.data();
     const userId = data.userId as string | undefined;
     if (!userId) continue;
 
+    const expiry = parseVehicleDateLiteral(
+      typeof data.insuranceExpiryDate === "string"
+        ? data.insuranceExpiryDate
+        : undefined,
+    );
+    const fromCasin =
+      typeof data.casinAutoId === "string" && Boolean(data.casinAutoId.trim());
+    if (fromCasin && (!expiry || expiry < today)) continue;
+    if (!fromCasin && expiry && expiry < today) continue;
+
     const item: CasinClientVehicleItem = {
       id: vehicleDoc.id,
       alias: typeof data.alias === "string" ? data.alias : undefined,
       plate: typeof data.plate === "string" ? data.plate : "—",
-      state: typeof data.state === "string" ? data.state : undefined,
+      state: resolveVehicleState(
+        typeof data.plate === "string" ? data.plate : undefined,
+        typeof data.state === "string" ? data.state : undefined,
+      ),
       brand: typeof data.brand === "string" ? data.brand : undefined,
       modelYear:
         typeof data.modelYear === "number" ? data.modelYear : undefined,
       ownerName:
         typeof data.ownerName === "string" ? data.ownerName : undefined,
+      niv: typeof data.niv === "string" ? data.niv : undefined,
+      vehicleType:
+        typeof data.vehicleType === "string" ? data.vehicleType : undefined,
     };
 
     const list = vehiclesByUser.get(userId) ?? [];
@@ -241,19 +281,61 @@ export async function listCasinClients(
     vehiclesByUser.set(userId, list);
   }
 
-  for (const [, vehicles] of vehiclesByUser) {
-    vehicles.sort((a, b) =>
+  for (const [userId, vehicles] of vehiclesByUser) {
+    const seen = new Set<string>();
+    const unique: CasinClientVehicleItem[] = [];
+    for (const vehicle of vehicles) {
+      const key = casinVehicleIdentityKey({
+        id: vehicle.id,
+        niv: vehicle.niv,
+        plate: vehicle.plate,
+      });
+      if (seen.has(key) && !key.startsWith("auto:")) continue;
+      seen.add(key);
+      unique.push(vehicle);
+    }
+    unique.sort((a, b) =>
       (a.alias ?? a.plate).localeCompare(b.alias ?? b.plate, "es"),
     );
+    vehiclesByUser.set(userId, unique);
   }
 
   const clients: CasinClientDirectoryItem[] = [];
+  const seenUsers = new Set<string>();
 
-  for (const doc of linksSnap.docs) {
+  const sortedLinks = [...linksSnap.docs].sort((left, right) => {
+    const leftData = left.data() as AccessLinkDoc;
+    const rightData = right.data() as AccessLinkDoc;
+    const leftCount = Array.isArray(leftData.casinAutoIds)
+      ? leftData.casinAutoIds.length
+      : 0;
+    const rightCount = Array.isArray(rightData.casinAutoIds)
+      ? rightData.casinAutoIds.length
+      : 0;
+    if (rightCount !== leftCount) return rightCount - leftCount;
+    const leftEmail = leftData.email ? 1 : 0;
+    const rightEmail = rightData.email ? 1 : 0;
+    return rightEmail - leftEmail;
+  });
+
+  for (const doc of sortedLinks) {
     const data = doc.data() as AccessLinkDoc;
+    if (data.revoked) continue;
+
     const userId = data.userId;
+    if (!userId || seenUsers.has(userId)) continue;
+
     const crmName = data.clientName?.trim();
     const displayName = data.displayName?.trim() || "Cliente";
+    const clientName = crmName || displayName;
+    const nameKey = casinClientNameKey(clientName);
+    if (nameKey && seenUsers.has(`name:${nameKey}`)) continue;
+
+    const vehicles = vehiclesByUser.get(userId) ?? [];
+    if (vehicles.length === 0) continue;
+
+    seenUsers.add(userId);
+    if (nameKey) seenUsers.add(`name:${nameKey}`);
 
     clients.push({
       userId,
@@ -261,8 +343,8 @@ export async function listCasinClients(
       email: data.email ?? undefined,
       token: doc.id,
       link: buildAccessLinkUrl(doc.id),
-      revoked: Boolean(data.revoked),
-      vehicles: vehiclesByUser.get(userId) ?? [],
+      revoked: false,
+      vehicles,
     });
   }
 

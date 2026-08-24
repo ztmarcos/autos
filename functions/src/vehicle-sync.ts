@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import { parseModelYear, normalizeCalcomania, resolveCalcomaniaFromVerificacionFields } from "./model-year";
+import { inferStateFromPlate } from "./mx-plates";
 import { isMotoVehicle, resolveVehicleTypeFromFields } from "./no-circula";
 
 function parseCylinders(
@@ -123,7 +124,12 @@ function applyTarjetaFields(
     patch.alias = alias;
   }
 
-  if (isUnset(vehicle.state) && fields.entidad) {
+  const plateState = inferStateFromPlate(
+    String(fields.placa ?? vehicle.plate ?? ""),
+  );
+  if (plateState && vehicle.state !== plateState) {
+    patch.state = plateState;
+  } else if (isUnset(vehicle.state) && fields.entidad) {
     const state = mapEntidadToStateCode(String(fields.entidad));
     if (state) patch.state = state;
   }

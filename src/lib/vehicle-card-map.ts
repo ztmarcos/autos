@@ -1,4 +1,5 @@
 import { MX_STATES } from "@/lib/mx-rules";
+import { inferStateFromPlate } from "@/lib/mx-plates";
 import { resolveVehicleTypeFromFields } from "@/lib/no-circula";
 import type { VehicleType } from "@/lib/types";
 
@@ -216,9 +217,11 @@ export function mapCardFieldsToVehicle(
   const line = submarca || (modelo && !parseModelYear(modelo) ? modelo : "");
   const alias =
     marca || line ? [marca, line].filter(Boolean).join(" ") : undefined;
-  const state = fields.entidad
-    ? mapEntidadToStateCode(String(fields.entidad))
-    : undefined;
+  const state =
+    inferStateFromPlate(plate) ??
+    (fields.entidad
+      ? mapEntidadToStateCode(String(fields.entidad))
+      : undefined);
   const niv = fields.niv ? String(fields.niv).trim().toUpperCase() : undefined;
   const ownerNameRaw = fields.nombre ?? fields.propietario;
   const ownerName = ownerNameRaw ? String(ownerNameRaw).trim() : undefined;

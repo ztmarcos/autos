@@ -10,9 +10,11 @@ import type { VehicleEmailSummary } from "./vehicle-email";
 export {
   buildAlertEmail,
   buildAlertEmailHtml,
+  buildCasinInviteEmail,
   buildVehicleRegisteredEmail,
   buildWelcomeEmail,
   buildWelcomeEmailHtml,
+  CASIN_FLYER_CID,
 } from "./email-templates";
 
 let transporter: Transporter | null = null;
@@ -56,7 +58,12 @@ export async function sendEmail(
   to: string,
   subject: string,
   content: EmailContent | string,
-  options?: { cc?: string | string[] },
+  options?: {
+    cc?: string | string[];
+    fromName?: string;
+    replyTo?: string;
+    attachments?: import("nodemailer").SendMailOptions["attachments"];
+  },
 ): Promise<void> {
   if (!transporter || !fromAddress) {
     throw new Error("Mail not configured");
@@ -69,12 +76,14 @@ export async function sendEmail(
       : content.text;
 
   await transporter.sendMail({
-    from: `${APP_NAME} <${fromAddress}>`,
+    from: `${options?.fromName?.trim() || APP_NAME} <${fromAddress}>`,
     to,
     cc: options?.cc,
+    replyTo: options?.replyTo,
     subject,
     html,
     text,
+    attachments: options?.attachments,
   });
 }
 

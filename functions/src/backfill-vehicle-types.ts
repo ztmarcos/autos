@@ -60,6 +60,9 @@ export async function backfillVehicleTypes(
       patch.calcomania = admin.firestore.FieldValue.delete();
       clearedCalcomania += 1;
     }
+    if (resolvedType === "moto" && data.verificationDate != null && data.verificationDate !== "") {
+      patch.verificationDate = admin.firestore.FieldValue.delete();
+    }
 
     if (Object.keys(patch).length === 0) continue;
 

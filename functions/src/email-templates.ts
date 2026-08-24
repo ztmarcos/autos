@@ -1,4 +1,5 @@
 import { APP_NAME } from "./app-name";
+import { isMotoVehicle } from "./no-circula";
 import {
   vehicleDetailLines,
   type VehicleEmailSummary,
@@ -56,11 +57,43 @@ function featureRow(icon: string, title: string, text: string): string {
 
 export function wrapEmailHtml(
   bodyHtml: string,
-  options?: { preheader?: string },
+  options?: { preheader?: string; hideBrandHeader?: boolean },
 ): string {
   const preheader = options?.preheader
     ? `<span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(options.preheader)}</span>`
     : "";
+
+  const header = options?.hideBrandHeader
+    ? ""
+    : `
+            <tr>
+              <td style="padding:32px 32px 24px;text-align:center;background:${EMAIL_COLORS.surface};">
+                <div style="display:inline-block;background:#ffffff;padding:12px 16px;border-radius:12px;border:1px solid ${EMAIL_COLORS.border};">
+                  <img src="${LOGO_URL}" alt="${APP_NAME}" width="140" height="76" style="display:block;margin:0 auto;border:0;outline:none;" />
+                </div>
+                <p style="margin:0;font-size:13px;letter-spacing:0.02em;color:${EMAIL_COLORS.muted};">
+                  Control vehicular para México
+                </p>
+              </td>
+            </tr>`;
+
+  const footer = options?.hideBrandHeader
+    ? `
+            <tr>
+              <td style="padding:16px 32px;background:${EMAIL_COLORS.surfaceMuted};border-top:1px solid ${EMAIL_COLORS.border};">
+                <p style="margin:0;font-size:12px;line-height:1.5;color:${EMAIL_COLORS.muted};text-align:center;">
+                  CASIN Seguros · www.casinseguros.com
+                </p>
+              </td>
+            </tr>`
+    : `
+            <tr>
+              <td style="padding:20px 32px;background:${EMAIL_COLORS.surfaceMuted};border-top:1px solid ${EMAIL_COLORS.border};">
+                <p style="margin:0;font-size:12px;line-height:1.5;color:${EMAIL_COLORS.muted};text-align:center;">
+                  ${APP_NAME} · Alertas automáticas de tus vehículos
+                </p>
+              </td>
+            </tr>`;
 
   return `
 <!DOCTYPE html>
@@ -76,28 +109,13 @@ export function wrapEmailHtml(
       <tr>
         <td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:${EMAIL_COLORS.surface};border:1px solid ${EMAIL_COLORS.border};border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(17,24,39,0.08);">
+            ${header}
             <tr>
-              <td style="padding:32px 32px 24px;text-align:center;background:${EMAIL_COLORS.surface};">
-                <div style="display:inline-block;background:#ffffff;padding:12px 16px;border-radius:12px;border:1px solid ${EMAIL_COLORS.border};">
-                  <img src="${LOGO_URL}" alt="${APP_NAME}" width="140" height="76" style="display:block;margin:0 auto;border:0;outline:none;" />
-                </div>
-                <p style="margin:0;font-size:13px;letter-spacing:0.02em;color:${EMAIL_COLORS.muted};">
-                  Control vehicular para México
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 32px 32px;">
+              <td style="padding:${options?.hideBrandHeader ? "24px 24px 32px" : "0 32px 32px"};">
                 ${bodyHtml}
               </td>
             </tr>
-            <tr>
-              <td style="padding:20px 32px;background:${EMAIL_COLORS.surfaceMuted};border-top:1px solid ${EMAIL_COLORS.border};">
-                <p style="margin:0;font-size:12px;line-height:1.5;color:${EMAIL_COLORS.muted};text-align:center;">
-                  ${APP_NAME} · Alertas automáticas de tus vehículos
-                </p>
-              </td>
-            </tr>
+            ${footer}
           </table>
         </td>
       </tr>
@@ -134,8 +152,9 @@ function vehicleCardHtml(vehicle: VehicleEmailSummary): string {
     .filter(Boolean)
     .join(" · ");
 
+  const hideVerification = isMotoVehicle(vehicle);
   const dates = [
-    vehicle.verificationDate
+    !hideVerification && vehicle.verificationDate
       ? `Verificación ${escapeHtml(vehicle.verificationDate)}`
       : null,
     vehicle.tenenciaDate ? `Tenencia ${escapeHtml(vehicle.tenenciaDate)}` : null,
@@ -166,7 +185,10 @@ function vehicleCardHtml(vehicle: VehicleEmailSummary): string {
   `;
 }
 
-function vehicleListHtml(vehicles: VehicleEmailSummary[]): string {
+function vehicleListHtml(
+  vehicles: VehicleEmailSummary[],
+  title = "Tus autos registrados",
+): string {
   if (vehicles.length === 0) return "";
 
   return `
@@ -174,7 +196,7 @@ function vehicleListHtml(vehicles: VehicleEmailSummary[]): string {
       <tr>
         <td>
           <p style="margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;color:${EMAIL_COLORS.muted};">
-            Tus autos registrados
+            ${escapeHtml(title)}
           </p>
         </td>
       </tr>
@@ -455,6 +477,135 @@ Abrir app: ${APP_URL}${emailFooterText()}`;
   return {
     html: wrapEmailHtml(body, {
       preheader: alert.summary.slice(0, 120),
+    }),
+    text,
+  };
+}
+
+const CASIN_NAVY = "#1B365D";
+const CASIN_ORANGE = "#E87722";
+export const CASIN_FLYER_CID = "casin-flyer";
+
+function formatDisplayDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  return value;
+}
+
+export function buildCasinInviteEmail(options: {
+  clientName: string;
+  vehicles: VehicleEmailSummary[];
+  accessUrl: string;
+  flyerSrc?: string;
+}): EmailContent {
+  const name = options.clientName.trim() || "cliente";
+  const flyerSrc = options.flyerSrc || `cid:${CASIN_FLYER_CID}`;
+  const vehicles = options.vehicles.map((vehicle) => {
+    const mapped = {
+      ...vehicle,
+      alias: vehicle.alias || vehicle.displayName,
+      insuranceExpiryDate: formatDisplayDate(vehicle.insuranceExpiryDate),
+      verificationDate: formatDisplayDate(vehicle.verificationDate),
+      tenenciaDate: formatDisplayDate(vehicle.tenenciaDate),
+      refrendoDate: formatDisplayDate(vehicle.refrendoDate),
+      serviceDate: formatDisplayDate(vehicle.serviceDate),
+    };
+    if (isMotoVehicle(mapped)) {
+      mapped.verificationDate = undefined;
+    }
+    return mapped;
+  });
+
+  const motoOnly =
+    vehicles.length > 0 && vehicles.every((vehicle) => isMotoVehicle(vehicle));
+  const paragraphs = motoOnly
+    ? [
+        "Quiero presentarte una nueva aplicación que hemos desarrollado para que puedas tener toda la información y documentación de tus vehículos en un solo lugar.",
+        "Desde la aplicación podrás consultar documentos, recibir alertas de vencimientos como la póliza y mantener actualizada la información de tus vehículos.",
+        "Además, podrás dar de alta otros vehículos, aunque no estén asegurados con nosotros, convirtiendo la aplicación en una herramienta para administrar de manera integral todos tus vehículos.",
+        "La idea es ofrecerte un servicio adicional que te ayude a no olvidar fechas importantes y tener siempre a la mano la documentación de tus vehículos.",
+      ]
+    : [
+        "Quiero presentarte una nueva aplicación que hemos desarrollado para que puedas tener toda la información y documentación de tus vehículos en un solo lugar.",
+        "Desde la aplicación podrás consultar documentos, recibir alertas importantes como “Hoy No Circula”, verificación y otros vencimientos, así como mantener actualizada la información de tus vehículos.",
+        "Además, podrás dar de alta otros vehículos, aunque no estén asegurados con nosotros, convirtiendo la aplicación en una herramienta para administrar de manera integral todos tus vehículos.",
+        "La idea es ofrecerte un servicio adicional que te ayude a no olvidar fechas importantes y tener siempre a la mano la documentación de tus vehículos.",
+      ];
+
+  const body = `
+    <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:700;color:${CASIN_NAVY};">
+      Una nueva forma de administrar tus vehículos
+    </h1>
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:${EMAIL_COLORS.foreground};">
+      Estimado ${escapeHtml(name)}:
+    </p>
+    ${paragraphs
+      .map(
+        (paragraph) => `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:${EMAIL_COLORS.foreground};">
+      ${escapeHtml(paragraph)}
+    </p>`,
+      )
+      .join("")}
+
+    ${vehicleListHtml(vehicles, "Tus vehículos")}
+
+    ${primaryButton("Ver mis vehículos", options.accessUrl)}
+
+    <p style="margin:28px 0 4px;font-size:15px;line-height:1.6;color:${EMAIL_COLORS.foreground};">
+      Marcos Zavala
+    </p>
+    <p style="margin:0 0 24px;font-size:14px;font-weight:600;color:${CASIN_ORANGE};">
+      CASIN Seguros
+    </p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${EMAIL_COLORS.surfaceMuted};border-radius:12px;">
+      <tr>
+        <td style="padding:14px 16px;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;color:${EMAIL_COLORS.muted};">
+            Nota importante
+          </p>
+          <p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:${EMAIL_COLORS.muted};">
+            Esta información se encuentra solamente en nuestros dispositivos electrónicos y no se tiene acceso a ella desde ningún punto público, respetando las disposiciones de la Ley de Protección de Datos.
+          </p>
+          <p style="margin:0;font-size:13px;line-height:1.6;color:${EMAIL_COLORS.muted};">
+            Estamos a tus órdenes para atender otras necesidades de protección que tengas.
+          </p>
+        </td>
+      </tr>
+    </table>
+    <img src="${escapeHtml(flyerSrc)}" alt="CASIN Seguros" width="496" style="display:block;width:100%;max-width:496px;height:auto;border:0;outline:none;margin:28px 0 0;border-radius:12px;" />
+  `;
+
+  const vehicleText = vehicles.length
+    ? `\nTus vehículos:\n${vehicles
+        .map((vehicle) => {
+          const extra = vehicle.insuranceExpiryDate
+            ? `, póliza hasta ${vehicle.insuranceExpiryDate}`
+            : "";
+          return `- ${vehicle.displayName} (${vehicle.plate}${extra})`;
+        })
+        .join("\n")}\n`
+    : "";
+
+  const text = `Una nueva forma de administrar tus vehículos
+
+Estimado ${name}:
+
+${paragraphs.join("\n\n")}
+${vehicleText}
+Ver mis vehículos: ${options.accessUrl}
+
+Marcos Zavala
+CASIN Seguros
+
+Nota importante: Esta información se encuentra solamente en nuestros dispositivos electrónicos y no se tiene acceso a ella desde ningún punto público, respetando las disposiciones de la Ley de Protección de Datos.
+Estamos a tus órdenes para atender otras necesidades de protección que tengas.`;
+
+  return {
+    html: wrapEmailHtml(body, {
+      preheader: "Consulta tus documentos, alertas y vencimientos en un solo lugar.",
+      hideBrandHeader: true,
     }),
     text,
   };

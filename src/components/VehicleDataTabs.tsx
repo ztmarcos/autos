@@ -5,11 +5,13 @@ import type { Calcomania, DocumentType, Vehicle, VehicleDocument, VehicleEvent, 
 import { CALCOMANIA_OPTIONS, VEHICLE_TYPE_OPTIONS } from "@/lib/types";
 import { getSchema } from "@/config/document-schemas";
 import { MX_STATES, getStateName } from "@/lib/mx-rules";
-import { formatCalcomaniaLabel } from "@/lib/no-circula";
+import { resolveVehicleState } from "@/lib/mx-plates";
+import { formatCalcomaniaLabel, isMotoVehicle } from "@/lib/no-circula";
 import {
-  getLatestReadyDocument,
+  getCapturedDocument,
   getServiciosSections,
   getTramitesSections,
+  mergeDocumentFields,
   type DataField,
   type DataSection,
   type VehicleDataTabId,
@@ -18,6 +20,7 @@ import { addVehicleEvent, listVehicleEvents, formatVehicleDisplayDate } from "@/
 import { parseVehicleDateLiteral } from "@/lib/dates";
 import { ClickToEditField, ClickToEditSelectField } from "@/components/ClickToEditField";
 import { DocumentGrid } from "@/components/DocumentGrid";
+import { hasOriginalDocumentFile } from "@/lib/documents";
 
 interface VehicleDataTabsProps {
   userId: string;
@@ -194,6 +197,7 @@ function GeneralTab({
   const [deleting, setDeleting] = useState(false);
 
   const v = vehicle;
+  const hideVerification = isMotoVehicle(v);
 
   return (
     <div>
@@ -245,7 +249,11 @@ function GeneralTab({
         onCancel={editor.cancel}
         onSave={(val) =>
           editor.save("plate", () =>
-            onUpdateVehicle({ plate: val.trim().toUpperCase() || undefined }),
+            onUpdateVehicle({
+              plate: val.trim().toUpperCase() || undefined,
+              plateLocked: true,
+              state: resolveVehicleState(val, v.state),
+            }),
           )
         }
       />
@@ -257,7 +265,11 @@ function GeneralTab({
         saving={editor.saving}
         onStartEdit={() => editor.start("state")}
         onCancel={editor.cancel}
-        onSave={(val) => editor.save("state", () => onUpdateVehicle({ state: val }))}
+        onSave={(val) =>
+          editor.save("state", () =>
+            onUpdateVehicle({ state: val, plateLocked: true }),
+          )
+        }
       >
         {MX_STATES.map((s) => (
           <option key={s.code} value={s.code}>
@@ -288,6 +300,7 @@ function GeneralTab({
           </option>
         ))}
       </ClickToEditSelectField>
+      {!hideVerification && (
       <ClickToEditSelectField
         label="Holograma"
         value={v.calcomania ?? ""}
@@ -309,6 +322,7 @@ function GeneralTab({
           </option>
         ))}
       </ClickToEditSelectField>
+      )}
       <ClickToEditField
         label="NIV"
         value={v.niv ?? ""}
@@ -372,6 +386,7 @@ function GeneralTab({
           editor.save("cardExpiryDate", () => onUpdateVehicle({ cardExpiryDate: val || undefined }))
         }
       />
+      {!hideVerification && (
       <ClickToEditField
         label="Verificación"
         value={v.verificationDate ?? ""}
@@ -386,6 +401,7 @@ function GeneralTab({
           )
         }
       />
+      )}
       <ClickToEditField
         label="Tenencia"
         value={v.tenenciaDate ?? ""}
@@ -478,12 +494,14 @@ function DocumentFieldsTab({
 }) {
   const editor = useFieldEditor();
   const schema = getSchema(type);
-  const doc = getLatestReadyDocument(documents, type);
+  const doc = getCapturedDocument(documents, type);
+  const fileDocuments = documents.filter(hasOriginalDocumentFile);
   const displayName = schema.label;
+  const capturedFields = mergeDocumentFields(documents, type);
 
   const getValue = (key: string) => {
     if (type === "tarjeta_circulacion") return getTarjetaFieldValue(key, vehicle, doc);
-    const fromDoc = doc?.extractedFields?.[key];
+    const fromDoc = capturedFields[key];
     if (fromDoc != null && String(fromDoc).trim()) return String(fromDoc).trim();
     if (key === "vigencia_fin" && vehicle.insuranceExpiryDate) {
       return vehicle.insuranceExpiryDate;
@@ -493,7 +511,7 @@ function DocumentFieldsTab({
 
   async function saveField(key: string, raw: string) {
     const fields: Record<string, string | number | null> = {
-      ...(doc?.extractedFields ?? {}),
+      ...capturedFields,
       [key]: raw.trim() || null,
     };
     await onUpsertDocument(doc?.id, type, displayName, fields);
@@ -514,7 +532,7 @@ function DocumentFieldsTab({
         <DocumentGrid
           userId={userId}
           vehicleId={vehicle.id}
-          documents={documents}
+          documents={type === "poliza_seguro" ? fileDocuments : documents}
           types={[type]}
           hintType={type}
           title={type === "tarjeta_circulacion" ? "Tarjetas" : "Pólizas"}
@@ -788,13 +806,16 @@ export function VehicleDataTabs({
   const [activeTab, setActiveTab] = useState<VehicleDataTabId>("general");
 
   const tramitesDocTypes = useMemo(
-    (): DocumentType[] => ["verificacion", "tenencia", "factura", "otro"],
-    [],
+    (): DocumentType[] =>
+      isMotoVehicle(vehicle)
+        ? ["tenencia", "factura", "otro"]
+        : ["verificacion", "tenencia", "factura", "otro"],
+    [vehicle],
   );
 
   const tramitesSections = useMemo(
-    () => getTramitesSections(documents, events),
-    [documents, events],
+    () => getTramitesSections(documents, events, vehicle),
+    [documents, events, vehicle],
   );
 
   return (
@@ -882,7 +903,11 @@ export function VehicleDataTabs({
           )}
           <DataSections
             sections={tramitesSections}
-            emptyMessage="Sube comprobantes de verificación, tenencia o facturas para ver los datos extraídos."
+            emptyMessage={
+              isMotoVehicle(vehicle)
+                ? "Sube comprobantes de tenencia o facturas para ver los datos extraídos."
+                : "Sube comprobantes de verificación, tenencia o facturas para ver los datos extraídos."
+            }
             onSelectDocument={onSelectDocument}
           />
         </>
