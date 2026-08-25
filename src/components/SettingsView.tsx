@@ -71,6 +71,12 @@ export function SettingsView({ userId, email, onBack }: SettingsViewProps) {
           {user?.sessionMode === "google" && (
             <p className="mt-1 text-xs text-black/40">Cuenta de Google</p>
           )}
+          {user?.sessionMode === "link" && (
+            <p className="mt-1 text-xs text-black/40">
+              Acceso con tu correo. Si cierras sesión, vuelve a entrar con el
+              mismo correo de la invitación.
+            </p>
+          )}
         </section>
 
         <section className="space-y-4 px-4 py-4">

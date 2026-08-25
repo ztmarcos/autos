@@ -106,7 +106,8 @@ function InstallSteps({ platform }: { platform: Platform }) {
       ))}
       <p className="text-[12px] leading-relaxed text-black/40">
         No hace falta App Store ni Play Store. El ícono queda en tu pantalla de
-        inicio, como cualquier otra app.
+        inicio, como cualquier otra app. Si te pide entrar de nuevo, usa el mismo
+        correo de tu invitación.
       </p>
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { getDocs, collection } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { useAuth } from "@/components/AuthProvider";
@@ -53,9 +52,6 @@ import {
   removeVehicleCalendarEvents,
 } from "@/lib/calendar-sync";
 import {
-  accessLinkPath,
-  extractAccessTokenFromPathname,
-  getStoredLinkToken,
   getUserPreferences,
   activateNotificationsOnAppOpen,
 } from "@/lib/auth";
@@ -67,7 +63,6 @@ import { subscribeToAllStateNews } from "@/lib/state-news";
 
 export function CarControlApp() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [rules, setRules] = useState<MxVehicleRule[]>(MX_RULES_SEED);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -102,16 +97,6 @@ export function CarControlApp() {
     setInsuranceExpiries(expiries);
     setLoading(false);
   }, [user]);
-
-  useEffect(() => {
-    if (!user || user.sessionMode !== "link") return;
-    const token = getStoredLinkToken();
-    if (!token) return;
-    const current = extractAccessTokenFromPathname(window.location.pathname);
-    if (current === token) return;
-    if (window.location.pathname.startsWith("/admin")) return;
-    router.replace(accessLinkPath(token));
-  }, [router, user]);
 
   useEffect(() => {
     if (!user) return;

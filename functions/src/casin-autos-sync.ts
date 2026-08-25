@@ -623,6 +623,10 @@ async function reconcileVehiclesForUser(
     .get();
   const seenCanonical = new Set<string>();
 
+  if (canonicalIds.size === 0) {
+    return { upserted: 0, removed: 0, pdfsCopied, pdfsMissing };
+  }
+
   for (const doc of userVehicles.docs) {
     const data = doc.data();
     const casinAutoId =
@@ -651,6 +655,13 @@ export async function provisionVehiclesForAccessLink(
   const autos = casinAutoIds
     .map((casinAutoId) => autosById.get(casinAutoId))
     .filter((auto): auto is CasinAutoRecord => Boolean(auto));
+  if (autos.length === 0) {
+    console.warn(
+      "provisionVehiclesForAccessLink: CRM no resolvió autos; no se tocan vehículos",
+      { userId, casinAutoIds },
+    );
+    return 0;
+  }
   const result = await reconcileVehiclesForUser(db, userId, autos, clientLabel);
   return result.upserted;
 }
@@ -825,12 +836,24 @@ export async function syncCasinAutosFromPayload(
   }
 
   const leftoverVehicles = await db.collection("vehicles").get();
+  const vehiclesByUser = new Map<string, number>();
   for (const doc of leftoverVehicles.docs) {
-    const casinAutoId = doc.data().casinAutoId;
+    const userId = doc.data().userId;
+    if (typeof userId !== "string" || !userId) continue;
+    vehiclesByUser.set(userId, (vehiclesByUser.get(userId) ?? 0) + 1);
+  }
+  for (const doc of leftoverVehicles.docs) {
+    const data = doc.data();
+    const casinAutoId = data.casinAutoId;
     if (typeof casinAutoId !== "string" || !casinAutoId) continue;
     if (keepCasinAutoIds.has(casinAutoId)) continue;
+    if (!crmAutoIds.has(casinAutoId)) continue;
+    const userId = typeof data.userId === "string" ? data.userId : "";
+    const owned = userId ? vehiclesByUser.get(userId) ?? 0 : 0;
+    if (owned <= 1) continue;
     await deleteVehicleAndDocuments(doc.ref);
     vehiclesRemoved += 1;
+    if (userId) vehiclesByUser.set(userId, owned - 1);
   }
 
   for (const link of existingLinks) {

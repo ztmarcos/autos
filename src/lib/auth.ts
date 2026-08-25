@@ -39,6 +39,18 @@ function resolveDemoPassword(override?: string): string {
 const SESSION_KEY = "carcontrol_session";
 const SESSION_MODE_KEY = "carcontrol_session_mode";
 const LINK_TOKEN_KEY = "carcontrol_link_token";
+const LINK_TOKEN_LEGACY_KEY = "carcontrol_link_token";
+const CLIENT_EMAIL_KEY = "carcontrol_client_email";
+
+export interface CasinClientEmailChoice {
+  token: string;
+  clientName: string;
+  vehicleCount: number;
+}
+
+export type SignInWithClientEmailResult =
+  | AppUser
+  | { choices: CasinClientEmailChoice[] };
 
 export interface AppUser {
   uid: string;
@@ -69,10 +81,55 @@ function getStoredMode(): SessionMode | null {
   return mode === "demo" || mode === "dev" ? mode : null;
 }
 
+function readLinkTokenFromStorage(storage: Storage): string | null {
+  const token = storage.getItem(LINK_TOKEN_KEY)?.trim();
+  return token || null;
+}
+
+export function storeLinkToken(token: string): void {
+  if (typeof window === "undefined") return;
+  const normalized = token.trim();
+  if (!normalized) return;
+  localStorage.setItem(LINK_TOKEN_KEY, normalized);
+  sessionStorage.removeItem(LINK_TOKEN_LEGACY_KEY);
+}
+
+export function clearStoredLinkToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LINK_TOKEN_KEY);
+  sessionStorage.removeItem(LINK_TOKEN_LEGACY_KEY);
+}
+
+export function getStoredClientEmail(): string | null {
+  if (typeof window === "undefined") return null;
+  const email = localStorage.getItem(CLIENT_EMAIL_KEY)?.trim().toLowerCase();
+  return email || null;
+}
+
+export function storeClientEmail(email: string): void {
+  if (typeof window === "undefined") return;
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return;
+  localStorage.setItem(CLIENT_EMAIL_KEY, normalized);
+}
+
+export function clearStoredClientEmail(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(CLIENT_EMAIL_KEY);
+}
+
 export function getStoredLinkToken(): string | null {
   if (typeof window === "undefined") return null;
-  const token = sessionStorage.getItem(LINK_TOKEN_KEY)?.trim();
-  return token || null;
+
+  const fromLocal = readLinkTokenFromStorage(localStorage);
+  if (fromLocal) return fromLocal;
+
+  const legacy = readLinkTokenFromStorage(sessionStorage);
+  if (!legacy) return null;
+
+  localStorage.setItem(LINK_TOKEN_KEY, legacy);
+  sessionStorage.removeItem(LINK_TOKEN_LEGACY_KEY);
+  return legacy;
 }
 
 export function accessLinkPath(token: string): string {
@@ -124,7 +181,7 @@ function firebaseUserToAppUser(user: FirebaseUser): AppUser {
 export async function signInWithGoogle(): Promise<AppUser | null> {
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem(SESSION_MODE_KEY);
-  sessionStorage.removeItem(LINK_TOKEN_KEY);
+  clearStoredLinkToken();
 
   const provider = googleSignInProvider();
 
@@ -156,7 +213,7 @@ export async function signInWithPassword(
     throw new Error("Contraseña incorrecta");
   }
   await firebaseSignOut(auth);
-  sessionStorage.removeItem(LINK_TOKEN_KEY);
+  clearStoredLinkToken();
   sessionStorage.setItem(SESSION_KEY, "ok");
   sessionStorage.setItem(SESSION_MODE_KEY, mode);
   const user = userForMode(mode);
@@ -183,26 +240,94 @@ export async function signInWithAccessLink(token: string): Promise<AppUser> {
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem(SESSION_MODE_KEY);
 
-  const exchange = httpsCallable<{ token: string }, { customToken: string }>(
-    functions,
-    "exchangeAccessLink",
-  );
+  const exchange = httpsCallable<
+    { token: string },
+    { customToken: string; token: string }
+  >(functions, "exchangeAccessLink");
   const result = await exchange({ token: normalized });
   const customToken = result.data.customToken;
+  const sessionToken = result.data.token || normalized;
   if (!customToken) {
     throw new Error("No se pudo iniciar sesión con el enlace");
   }
 
   await signInWithCustomToken(auth, customToken);
-  sessionStorage.setItem(LINK_TOKEN_KEY, normalized);
+  storeLinkToken(sessionToken);
 
   const user = getCurrentAppUser();
   if (!user) {
     throw new Error("No se pudo iniciar sesión con el enlace");
   }
 
+  if (user.email) storeClientEmail(user.email);
   await ensureUserProfile(user);
   return user;
+}
+
+function callableErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message?: string }).message ?? "").trim();
+    if (message) return message;
+  }
+  return "No se pudo iniciar sesión";
+}
+
+async function completeClientEmailSignIn(
+  email: string,
+  token: string,
+  customToken: string,
+): Promise<AppUser> {
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_MODE_KEY);
+
+  await signInWithCustomToken(auth, customToken);
+  storeLinkToken(token);
+  storeClientEmail(email);
+
+  const user = getCurrentAppUser();
+  if (!user) {
+    throw new Error("No se pudo iniciar sesión");
+  }
+
+  await ensureUserProfile(user);
+  return user;
+}
+
+export async function signInWithClientEmail(
+  email: string,
+  token?: string,
+): Promise<SignInWithClientEmailResult> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) {
+    throw new Error("Ingresa un correo válido");
+  }
+
+  const exchange = httpsCallable<
+    { email: string; token?: string },
+    | { customToken: string; token: string }
+    | { choices: CasinClientEmailChoice[] }
+  >(functions, "exchangeCasinClientEmail");
+
+  try {
+    const result = await exchange({
+      email: normalized,
+      ...(token ? { token } : {}),
+    });
+    const data = result.data;
+    if ("choices" in data && Array.isArray(data.choices)) {
+      return { choices: data.choices };
+    }
+    if (!("customToken" in data) || !data.customToken || !data.token) {
+      throw new Error("No se pudo iniciar sesión");
+    }
+    return completeClientEmailSignIn(
+      normalized,
+      data.token,
+      data.customToken,
+    );
+  } catch (error) {
+    throw new Error(callableErrorMessage(error));
+  }
 }
 
 export async function restoreLinkSessionIfNeeded(): Promise<AppUser | null> {
@@ -211,12 +336,29 @@ export async function restoreLinkSessionIfNeeded(): Promise<AppUser | null> {
   }
 
   const token = getStoredLinkToken();
-  if (!token) return null;
+  if (token) {
+    try {
+      return await signInWithAccessLink(token);
+    } catch {
+      clearStoredLinkToken();
+    }
+  }
+
+  const email = getStoredClientEmail();
+  if (!email) return null;
 
   try {
-    return await signInWithAccessLink(token);
+    const result = await signInWithClientEmail(email);
+    if ("choices" in result) {
+      if (result.choices.length === 1) {
+        return signInWithClientEmail(email, result.choices[0].token).then(
+          (next) => ("choices" in next ? null : next),
+        );
+      }
+      return null;
+    }
+    return result;
   } catch {
-    sessionStorage.removeItem(LINK_TOKEN_KEY);
     return null;
   }
 }
@@ -224,29 +366,42 @@ export async function restoreLinkSessionIfNeeded(): Promise<AppUser | null> {
 export async function logOut(): Promise<void> {
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem(SESSION_MODE_KEY);
-  sessionStorage.removeItem(LINK_TOKEN_KEY);
+  clearStoredLinkToken();
   await firebaseSignOut(auth);
 }
 
 export function subscribeToAuth(callback: (user: AppUser | null) => void) {
   let active = true;
+  let bootstrapped = false;
 
-  void handleAuthRedirect().catch(() => {});
-
-  void restoreLinkSessionIfNeeded()
-    .then((user) => {
-      if (!active || !user) return;
-      callback(user);
-    })
-    .catch(() => {});
-
-  const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+  const notify = (user: AppUser | null) => {
     if (!active) return;
-    if (firebaseUser) {
-      callback(firebaseUserToAppUser(firebaseUser));
+    callback(user);
+  };
+
+  void (async () => {
+    await handleAuthRedirect().catch(() => {});
+    const restored = await restoreLinkSessionIfNeeded().catch(() => null);
+    bootstrapped = true;
+    if (!active) return;
+    if (restored) {
+      notify(restored);
       return;
     }
-    callback(getStoredSession());
+    if (auth.currentUser) {
+      notify(firebaseUserToAppUser(auth.currentUser));
+      return;
+    }
+    notify(getStoredSession());
+  })();
+
+  const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    if (!active || !bootstrapped) return;
+    if (firebaseUser) {
+      notify(firebaseUserToAppUser(firebaseUser));
+      return;
+    }
+    notify(getStoredSession());
   });
 
   function onStorage(e: StorageEvent) {
@@ -256,7 +411,7 @@ export function subscribeToAuth(callback: (user: AppUser | null) => void) {
       e.key === LINK_TOKEN_KEY
     ) {
       if (auth.currentUser) return;
-      callback(getStoredSession());
+      notify(getStoredSession());
     }
   }
   window.addEventListener("storage", onStorage);

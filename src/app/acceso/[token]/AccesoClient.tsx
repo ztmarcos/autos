@@ -5,9 +5,9 @@ import { CarControlApp } from "@/components/CarControlApp";
 import { useAuth } from "@/components/AuthProvider";
 import { APP_NAME } from "@/config/app";
 import { AppLogo } from "@/components/AppLogo";
+import { auth } from "@/lib/firebase";
 import {
   extractAccessTokenFromPathname,
-  getCurrentAppUser,
   getStoredLinkToken,
   signInWithAccessLink,
 } from "@/lib/auth";
@@ -24,14 +24,18 @@ export function AccesoClient({ fallbackToken }: { fallbackToken?: string }) {
       typeof window !== "undefined"
         ? extractAccessTokenFromPathname(window.location.pathname)
         : null;
-    const token = fromPath || fallbackToken?.trim() || null;
+    const fallback =
+      fallbackToken?.trim() && fallbackToken.trim() !== "_"
+        ? fallbackToken.trim()
+        : null;
+    const token = fromPath || fallback;
 
     if (!token) {
       setError("Enlace inválido");
       return;
     }
 
-    if (getStoredLinkToken() === token && getCurrentAppUser()) {
+    if (getStoredLinkToken() === token && auth.currentUser) {
       setReady(true);
       return;
     }

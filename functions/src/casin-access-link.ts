@@ -145,8 +145,104 @@ async function ensureAuthUserExists(
 export async function exchangeAccessLink(
   db: Firestore,
   rawToken: unknown,
-): Promise<{ customToken: string; userId: string; displayName: string }> {
+): Promise<{ customToken: string; userId: string; displayName: string; token: string }> {
   const token = normalizeToken(rawToken);
+  return completeAccessLinkExchange(db, token);
+}
+
+export interface CasinClientEmailChoice {
+  token: string;
+  clientName: string;
+  vehicleCount: number;
+}
+
+export type ExchangeCasinClientEmailResult =
+  | {
+      customToken: string;
+      userId: string;
+      displayName: string;
+      token: string;
+    }
+  | { choices: CasinClientEmailChoice[] };
+
+export async function exchangeCasinClientEmail(
+  db: Firestore,
+  rawEmail: unknown,
+  rawToken?: unknown,
+): Promise<ExchangeCasinClientEmailResult> {
+  if (typeof rawToken === "string" && rawToken.trim()) {
+    const token = normalizeToken(rawToken);
+    const linkSnap = await db.collection("access_links").doc(token).get();
+    if (!linkSnap.exists) {
+      throw new HttpsError("not-found", "Cuenta no encontrada");
+    }
+    const link = linkSnap.data() as AccessLinkDoc;
+    if (link.revoked) {
+      throw new HttpsError("permission-denied", "Cuenta no disponible");
+    }
+    const email = normalizeCasinEmail(
+      typeof rawEmail === "string" ? rawEmail : link.email ?? undefined,
+    );
+    if (!email) {
+      throw new HttpsError("invalid-argument", "Correo inválido");
+    }
+    const linkEmail = normalizeCasinEmail(link.email ?? undefined);
+    if (linkEmail && linkEmail !== email) {
+      throw new HttpsError("permission-denied", "Correo no coincide con la cuenta");
+    }
+    return completeAccessLinkExchange(db, token);
+  }
+
+  const email = normalizeCasinEmail(
+    typeof rawEmail === "string" ? rawEmail : undefined,
+  );
+  if (!email) {
+    throw new HttpsError("invalid-argument", "Correo inválido");
+  }
+
+  const snap = await db
+    .collection("access_links")
+    .where("email", "==", email)
+    .get();
+
+  const matches = snap.docs
+    .map((doc) => {
+      const data = doc.data() as AccessLinkDoc;
+      if (data.revoked) return null;
+      const clientName =
+        data.clientName?.trim() || data.displayName?.trim() || "Cliente";
+      const vehicleCount = Array.isArray(data.casinAutoIds)
+        ? data.casinAutoIds.length
+        : 0;
+      return {
+        token: doc.id,
+        clientName,
+        vehicleCount,
+      } satisfies CasinClientEmailChoice;
+    })
+    .filter((item): item is CasinClientEmailChoice => Boolean(item))
+    .sort((left, right) =>
+      left.clientName.localeCompare(right.clientName, "es"),
+    );
+
+  if (matches.length === 0) {
+    throw new HttpsError(
+      "not-found",
+      "No encontramos una cuenta activa con ese correo",
+    );
+  }
+
+  if (matches.length === 1) {
+    return completeAccessLinkExchange(db, matches[0].token);
+  }
+
+  return { choices: matches };
+}
+
+async function completeAccessLinkExchange(
+  db: Firestore,
+  token: string,
+): Promise<{ customToken: string; userId: string; displayName: string; token: string }> {
   const linkRef = db.collection("access_links").doc(token);
   const linkSnap = await linkRef.get();
 
@@ -206,7 +302,7 @@ export async function exchangeAccessLink(
     { merge: true },
   );
 
-  return { customToken, userId, displayName };
+  return { customToken, userId, displayName, token };
 }
 
 export async function listCasinAccessLinks(

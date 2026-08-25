@@ -40,6 +40,7 @@ import { syncCasinAutos as performCasinAutosSync } from "./casin-autos-sync";
 import {
   assertCasinAdminSecret,
   exchangeAccessLink as performAccessLinkExchange,
+  exchangeCasinClientEmail as performCasinClientEmailExchange,
   listCasinAccessLinks as fetchCasinAccessLinks,
   listCasinClients as fetchCasinClients,
 } from "./casin-access-link";
@@ -699,6 +700,11 @@ export const syncCasinAutosManual = onCall(
 export const exchangeAccessLink = onCall(async (request) => {
   const { token } = request.data as { token?: string };
   return performAccessLinkExchange(db, token);
+});
+
+export const exchangeCasinClientEmail = onCall(async (request) => {
+  const { email, token } = request.data as { email?: string; token?: string };
+  return performCasinClientEmailExchange(db, email, token);
 });
 
 export const listCasinClients = onCall(
