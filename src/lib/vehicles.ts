@@ -21,11 +21,12 @@ import {
   formatDaysLabel,
   getStateName,
   getUrgencyStatus,
+  inferNextVerificationPeriod,
 } from "@/lib/mx-rules";
 import {
   resolveRefrendoDate,
   resolveTenenciaDate,
-  resolveVerificationDate,
+  resolveVerificationDisplay,
 } from "@/lib/expiry-cycle";
 import {
   normalizeCalcomania,
@@ -162,16 +163,32 @@ export function getUpcomingItems(
   const items: UpcomingItem[] = [];
 
   if (!isMotoVehicle(vehicle)) {
-    const verificationDate = resolveVerificationDate(vehicle);
-    if (verificationDate) {
-      const days = computeDaysUntil(verificationDate);
+    const verification = resolveVerificationDisplay(vehicle);
+    if (verification.date) {
+      const days = computeDaysUntil(verification.date);
       items.push({
         type: "verificacion",
         label: "Verificación",
-        date: verificationDate,
+        date: verification.date,
         daysUntil: days,
         overdue: days < 0,
       });
+    } else if (verification.periodLabel) {
+      const period = inferNextVerificationPeriod(
+        vehicle.plate,
+        resolveVehicleState(vehicle.plate, vehicle.state),
+      );
+      if (period) {
+        const days = computeDaysUntil(period.endIso);
+        items.push({
+          type: "verificacion",
+          label: "Verificación",
+          date: period.endIso,
+          daysUntil: days,
+          overdue: days < 0,
+          display: verification.periodLabel,
+        });
+      }
     }
   }
 
@@ -268,11 +285,26 @@ export function getVehicleExpiryTags(
   };
 
   if (!isMotoVehicle(vehicle)) {
-    pushTag(
-      "verificacion",
-      "Verificación",
-      resolveVerificationDate(vehicle),
-    );
+    const verification = resolveVerificationDisplay(vehicle);
+    if (verification.date) {
+      pushTag("verificacion", "Verificación", verification.date);
+    } else if (verification.periodLabel) {
+      const period = inferNextVerificationPeriod(
+        vehicle.plate,
+        resolveVehicleState(vehicle.plate, vehicle.state),
+      );
+      if (period) {
+        const daysUntil = computeDaysUntil(period.endIso);
+        tags.push({
+          type: "verificacion",
+          label: "Verificación",
+          date: period.endIso,
+          daysUntil,
+          urgency: getUrgencyStatus(daysUntil),
+          display: verification.periodLabel,
+        });
+      }
+    }
   }
   pushTag("tenencia", "Tenencia", resolveTenenciaDate(vehicle.tenenciaDate));
   pushTag("refrendo", "Refrendo", resolveRefrendoDate(vehicle.refrendoDate));
@@ -299,6 +331,7 @@ export function getVehicleUrgency(vehicle: Vehicle): "ok" | "warning" | "danger"
 export function getVehicleSubtitle(vehicle: Vehicle): string {
   const next = getNextUpcoming(vehicle);
   if (!next) return "Todo al día";
+  if (next.display) return `${next.label} · ${next.display}`;
   return `${next.label} · ${formatDaysLabel(next.daysUntil)}`;
 }
 
@@ -331,13 +364,15 @@ export function getVehicleDatesLine(
   vehicle: Vehicle,
   insuranceExpiry?: string,
 ): string {
-  const verificationDate = resolveVerificationDate(vehicle);
+  const verification = resolveVerificationDisplay(vehicle);
   const tenenciaDate = resolveTenenciaDate(vehicle.tenenciaDate);
   const refrendoDate = resolveRefrendoDate(vehicle.refrendoDate);
   const parts = [
-    verificationDate
-      ? `Verificación ${formatVehicleDisplayDate(verificationDate)}`
-      : null,
+    verification.date
+      ? `Verificación ${formatVehicleDisplayDate(verification.date)}`
+      : verification.periodLabel
+        ? `Verificación ${verification.periodLabel}`
+        : null,
     tenenciaDate ? `Tenencia ${formatVehicleDisplayDate(tenenciaDate)}` : null,
     refrendoDate ? `Refrendo ${formatVehicleDisplayDate(refrendoDate)}` : null,
     vehicle.serviceDate

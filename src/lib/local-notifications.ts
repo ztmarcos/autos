@@ -71,8 +71,10 @@ export async function scheduleVehicleNotifications(
 
       notifications.push({
         id: notificationId(vehicle.id, item.type, daysBefore),
-        title: `${item.label} próxima`,
-        body: `${name}: ${item.label} ${daysBefore === 0 ? "hoy" : `en ${daysBefore} días`}`,
+        title: item.display ? `${item.label} — periodo` : `${item.label} próxima`,
+        body: item.display
+          ? `${name}: ${item.label} ${item.display}`
+          : `${name}: ${item.label} ${daysBefore === 0 ? "hoy" : `en ${daysBefore} días`}`,
         schedule: { at: targetDate },
         extra: { vehicleId: vehicle.id },
       });

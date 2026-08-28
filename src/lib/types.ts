@@ -137,6 +137,7 @@ export interface UpcomingItem {
   date: string;
   daysUntil: number;
   overdue: boolean;
+  display?: string;
 }
 
 export type UrgencyStatus = "ok" | "warning" | "danger";
@@ -147,6 +148,7 @@ export interface VehicleExpiryTag {
   date: string;
   daysUntil: number;
   urgency: UrgencyStatus;
+  display?: string;
 }
 
 export interface MxVehicleRule {

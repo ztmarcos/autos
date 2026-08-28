@@ -1,13 +1,17 @@
 import type { Firestore } from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import { APP_NAME } from "./app-name";
-import { buildAlertEmail } from "./email-templates";
+import { buildAlertEmail, buildVerificationPeriodEmail } from "./email-templates";
 import {
   buildExpiryRolloverPatch,
   daysUntilMexicoCity,
   resolveTenenciaDate,
-  resolveVerificationDate,
 } from "./expiry-cycle";
+import {
+  formatVerificationPeriodLabel,
+  inferNextVerificationPeriod,
+  verificationPeriodPhase,
+} from "./mx-verification";
 import { resolveVehicleState } from "./mx-plates";
 import { sendUserAlert } from "./send-user-alert";
 import { isMotoVehicle } from "./no-circula";
@@ -62,19 +66,48 @@ export async function runDailyAlerts(db: Firestore, mailReady: boolean): Promise
       typeof v.verificationDate === "string" && v.verificationDate.trim()
         ? v.verificationDate.trim()
         : null;
-    const verificationDate = !moto
-      ? storedVerification ||
-        resolveVerificationDate({
-          ...v,
-          state,
-        })
-      : null;
+    const verificationDate = !moto ? storedVerification : null;
     if (verificationDate) {
       events.push({
         type: "verificacion",
         label: "Verificación",
         date: verificationDate,
       });
+    } else if (!moto) {
+      const period = inferNextVerificationPeriod(
+        typeof v.plate === "string" ? v.plate : undefined,
+        state,
+      );
+      const phase = period ? verificationPeriodPhase(period) : null;
+      if (period && phase) {
+        const periodLabel = formatVerificationPeriodLabel(period);
+        const copy = {
+          opens: `Abre el periodo de verificación (${periodLabel})`,
+          mid: `Sigue abierto el periodo de verificación (${periodLabel})`,
+          last_month: `Último mes para verificar (${periodLabel})`,
+          due: `Hoy cierra el periodo de verificación (${periodLabel})`,
+          overdue: `Periodo de verificación vencido (${periodLabel})`,
+        }[phase];
+        await sendUserAlert(db, {
+          userId,
+          userData,
+          vehicleId: vDoc.id,
+          vehicleName,
+          notificationType: "verificacion",
+          message: copy,
+          emailSubject: `${APP_NAME}: ${copy} — ${vehicleName}`,
+          emailContent: buildVerificationPeriodEmail(
+            vehicleName,
+            periodLabel,
+            phase,
+          ),
+          mailReady,
+          pushTitle: `${APP_NAME}`,
+          pushBody: `${copy} — ${vehicleName}`,
+          pushData: { vehicleId: vDoc.id, type: "verificacion" },
+          includeInEmail: v.includeInEmail !== false,
+        });
+      }
     }
 
     const storedTenencia =

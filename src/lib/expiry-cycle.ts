@@ -1,9 +1,10 @@
 import { parseVehicleDateLiteral } from "@/lib/dates";
 import {
   computeDaysUntil,
-  inferNextVerificationDate,
+  inferNextVerificationPeriod,
 } from "@/lib/mx-rules";
 import { isMotoVehicle } from "@/lib/no-circula";
+import { resolveVehicleState } from "@/lib/mx-plates";
 import type { Vehicle } from "@/lib/types";
 
 const TENENCIA_MONTH = 3;
@@ -54,16 +55,34 @@ export function inferNextTenenciaDate(now = new Date()): string {
 
 export function resolveVerificationDate(
   vehicle: Pick<Vehicle, "plate" | "state" | "verificationDate" | "vehicleType" | "alias" | "brand">,
-  now = new Date(),
 ): string | undefined {
   if (isMotoVehicle(vehicle)) return undefined;
-  const inferred =
-    inferNextVerificationDate(vehicle.plate, vehicle.state, now) ?? undefined;
+  return parseVehicleDateLiteral(vehicle.verificationDate) ?? undefined;
+}
+
+export function resolveVerificationDisplay(
+  vehicle: Pick<Vehicle, "plate" | "state" | "verificationDate" | "vehicleType" | "alias" | "brand">,
+  now = new Date(),
+): { date?: string; periodLabel?: string } {
+  if (isMotoVehicle(vehicle)) return {};
   const stored = parseVehicleDateLiteral(vehicle.verificationDate);
-  if (!stored) return inferred;
-  const days = computeDaysUntil(stored);
-  if (Number.isFinite(days) && days >= 0) return stored;
-  return inferred ?? nextAnnualOccurrence(stored, now) ?? undefined;
+  if (stored) return { date: stored };
+  const period = inferNextVerificationPeriod(
+    vehicle.plate,
+    resolveVehicleState(vehicle.plate, vehicle.state),
+    now,
+  );
+  if (!period) return {};
+  return { periodLabel: formatPeriodWithState(period) };
+}
+
+function formatPeriodWithState(period: {
+  label: string;
+  year: number;
+  state: string;
+}): string {
+  const state = period.state === "EDOMEX" ? "EdoMex" : period.state;
+  return `${period.label} ${period.year} (${state})`;
 }
 
 export function resolveTenenciaDate(
@@ -96,11 +115,6 @@ export function buildExpiryRolloverPatch(
 
   if (isMotoVehicle(vehicle)) {
     if (vehicle.verificationDate) patch.verificationDate = undefined;
-  } else {
-    const verificationDate = resolveVerificationDate(vehicle, now);
-    if (verificationDate && verificationDate !== vehicle.verificationDate) {
-      patch.verificationDate = verificationDate;
-    }
   }
 
   const tenenciaDate = resolveTenenciaDate(vehicle.tenenciaDate, now);

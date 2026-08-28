@@ -18,7 +18,7 @@ export function VehicleExpiryTag({ tag }: VehicleExpiryTagProps) {
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] leading-tight ${tagStyles[tag.urgency]}`}
     >
       <span>
-        {tag.label} · {formatVehicleDisplayDate(tag.date)}
+        {tag.label} · {tag.display ?? formatVehicleDisplayDate(tag.date)}
       </span>
       <StatusDot status={tag.urgency} />
     </span>

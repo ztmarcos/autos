@@ -400,6 +400,84 @@ Ver vehículo: ${APP_URL}${emailFooterText()}`;
   };
 }
 
+export function buildVerificationPeriodEmail(
+  vehicleName: string,
+  periodLabel: string,
+  phase: "opens" | "mid" | "last_month" | "due" | "overdue",
+): EmailContent {
+  const copy = {
+    opens: {
+      title: "Abre el periodo de verificación",
+      detail:
+        "Ya puedes verificar este mes. No es una cita: es la ventana oficial por terminación de placa.",
+      urgency: "Periodo abierto",
+      color: EMAIL_COLORS.ok,
+    },
+    mid: {
+      title: "Sigue abierto el periodo de verificación",
+      detail:
+        "Aún estás a tiempo. Te recomendamos agendar antes del último mes del periodo.",
+      urgency: "A la mitad del periodo",
+      color: EMAIL_COLORS.ok,
+    },
+    last_month: {
+      title: "Último mes para verificar",
+      detail:
+        "Este es el último mes del periodo. Si no verificas, el auto queda fuera de regla.",
+      urgency: "Último mes",
+      color: "#c4922e",
+    },
+    due: {
+      title: "Hoy cierra el periodo de verificación",
+      detail: "Hoy es el último día de la ventana oficial por placa.",
+      urgency: "Cierra hoy",
+      color: "#c4922e",
+    },
+    overdue: {
+      title: "Periodo de verificación vencido",
+      detail:
+        "La ventana oficial ya cerró. Verifica lo antes posible para evitar multa.",
+      urgency: "Vencido",
+      color: "#c95656",
+    },
+  }[phase];
+
+  const body = `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:600;color:${EMAIL_COLORS.foreground};">
+      ${escapeHtml(copy.title)}
+    </h1>
+    <p style="margin:0 0 20px;font-size:15px;color:${EMAIL_COLORS.muted};">
+      ${escapeHtml(vehicleName)}
+    </p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${EMAIL_COLORS.surfaceMuted};border-radius:12px;">
+      <tr>
+        <td style="padding:16px 18px;">
+          <p style="margin:0 0 6px;font-size:13px;color:${EMAIL_COLORS.muted};">Periodo</p>
+          <p style="margin:0 0 12px;font-size:18px;font-weight:600;color:${EMAIL_COLORS.foreground};">${escapeHtml(periodLabel)}</p>
+          <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:${copy.color};">${escapeHtml(copy.urgency)}</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:${EMAIL_COLORS.muted};">${escapeHtml(copy.detail)}</p>
+        </td>
+      </tr>
+    </table>
+    ${primaryButton("Ver vehículo", APP_URL)}
+  `;
+
+  const text = `${copy.title} — ${vehicleName}
+
+Periodo: ${periodLabel}
+${copy.urgency}
+${copy.detail}
+
+Ver vehículo: ${APP_URL}${emailFooterText()}`;
+
+  return {
+    html: wrapEmailHtml(body, {
+      preheader: `${copy.title} — ${vehicleName}`,
+    }),
+    text,
+  };
+}
+
 export function buildAlertEmailHtml(
   vehicleName: string,
   eventLabel: string,

@@ -4,7 +4,7 @@ import { formatCalcomaniaLabel, isMotoVehicle } from "@/lib/no-circula";
 import {
   resolveRefrendoDate,
   resolveTenenciaDate,
-  resolveVerificationDate,
+  resolveVerificationDisplay,
 } from "@/lib/expiry-cycle";
 import type { DocumentType, Vehicle, VehicleDocument, VehicleEvent } from "@/lib/types";
 import { formatVehicleDisplayDate } from "@/lib/vehicles";
@@ -166,7 +166,12 @@ export function getGeneralSections(
     pushField(fields, "Cilindros", vehicle.cylinders);
   }
   if (!isMotoVehicle(vehicle)) {
-    pushDateField(fields, "Verificación", resolveVerificationDate(vehicle));
+    const verification = resolveVerificationDisplay(vehicle);
+    if (verification.date) {
+      pushDateField(fields, "Verificación", verification.date);
+    } else if (verification.periodLabel) {
+      pushField(fields, "Verificación", `Periodo ${verification.periodLabel}`);
+    }
   }
   pushDateField(fields, "Tenencia", resolveTenenciaDate(vehicle.tenenciaDate));
   pushDateField(fields, "Refrendo", resolveRefrendoDate(vehicle.refrendoDate));

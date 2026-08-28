@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AuthProvider } from "@/components/AuthProvider";
+import { PwaAutoRefresh } from "@/components/PwaAutoRefresh";
 import { APP_NAME } from "@/config/app";
 import "./globals.css";
 
@@ -25,7 +26,10 @@ export default function RootLayout({
   return (
     <html lang="es" className="bg-[var(--background)]">
       <body className="bg-[var(--background)] text-[var(--foreground)] antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PwaAutoRefresh />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

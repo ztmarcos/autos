@@ -475,7 +475,7 @@ export function VehicleForm({
           />
         </Field>
         {vehicleType !== "moto" && (
-        <Field label="Verificación">
+        <Field label="Verificación (opcional; si está vacío usamos el periodo por placa)">
           <input
             type="date"
             className="field-input"

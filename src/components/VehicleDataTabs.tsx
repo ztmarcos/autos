@@ -18,6 +18,7 @@ import {
 } from "@/lib/vehicle-data";
 import { addVehicleEvent, listVehicleEvents, formatVehicleDisplayDate } from "@/lib/vehicles";
 import { parseVehicleDateLiteral } from "@/lib/dates";
+import { resolveVerificationDisplay } from "@/lib/expiry-cycle";
 import { ClickToEditField, ClickToEditSelectField } from "@/components/ClickToEditField";
 import { DocumentGrid } from "@/components/DocumentGrid";
 import { hasOriginalDocumentFile } from "@/lib/documents";
@@ -390,6 +391,11 @@ function GeneralTab({
       <ClickToEditField
         label="Verificación"
         value={v.verificationDate ?? ""}
+        emptyLabel={
+          resolveVerificationDisplay(v).periodLabel
+            ? `Periodo ${resolveVerificationDisplay(v).periodLabel}`
+            : "Agregar"
+        }
         inputType="date"
         editing={editor.isEditing("verificationDate")}
         saving={editor.saving}

@@ -148,7 +148,9 @@ export function VehicleDetail({
                   <div key={item.type} className="flex items-center justify-between gap-3 py-3">
                     <dt className={`text-[15px] ${rowStyles[urgency]}`}>{item.label}</dt>
                     <dd className="flex items-center gap-2 text-right text-[15px]">
-                      <span className="text-black/50">{formatDate(item.date)}</span>
+                      <span className="text-black/50">
+                        {item.display ?? formatDate(item.date)}
+                      </span>
                       <span className={rowStyles[urgency]}>{daysLabel}</span>
                       <StatusDot status={urgency} />
                     </dd>

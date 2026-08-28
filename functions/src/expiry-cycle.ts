@@ -1,4 +1,3 @@
-import { inferNextVerificationDate } from "./mx-verification";
 import { isMotoVehicle } from "./no-circula";
 
 const TENENCIA_MONTH = 3;
@@ -70,7 +69,6 @@ export function resolveVerificationDate(
     alias?: unknown;
     brand?: unknown;
   },
-  now = new Date(),
 ): string | null {
   if (
     isMotoVehicle({
@@ -82,16 +80,7 @@ export function resolveVerificationDate(
     return null;
   }
 
-  const inferred = inferNextVerificationDate(
-    typeof vehicle.plate === "string" ? vehicle.plate : undefined,
-    typeof vehicle.state === "string" ? vehicle.state : undefined,
-    now,
-  );
-  const stored = normalizeIso(vehicle.verificationDate);
-  if (!stored) return inferred;
-  const days = daysUntilMexicoCity(stored, now);
-  if (Number.isFinite(days) && days >= 0) return stored;
-  return inferred ?? nextAnnualOccurrence(stored, now);
+  return normalizeIso(vehicle.verificationDate);
 }
 
 export function resolveTenenciaDate(
@@ -129,14 +118,6 @@ export function buildExpiryRolloverPatch(
 
   if (moto) {
     if (vehicle.verificationDate) patch.verificationDate = null;
-  } else {
-    const verificationDate = resolveVerificationDate(vehicle, now);
-    if (
-      verificationDate &&
-      verificationDate !== normalizeIso(vehicle.verificationDate)
-    ) {
-      patch.verificationDate = verificationDate;
-    }
   }
 
   const tenenciaDate = resolveTenenciaDate(vehicle.tenenciaDate, now);

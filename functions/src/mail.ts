@@ -14,6 +14,7 @@ export {
   buildVehicleRegisteredEmail,
   buildWelcomeEmail,
   buildWelcomeEmailHtml,
+  buildVerificationPeriodEmail,
   CASIN_FLYER_CID,
 } from "./email-templates";
 
